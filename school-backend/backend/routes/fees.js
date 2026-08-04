@@ -138,35 +138,68 @@ router.get('/monthly-defaulters', async (req, res, next) => {
   try {
     const month = normalizeMonthInput(req.query.month) || `${new Date().toISOString().slice(0, 7)}-01`;
     const { rows } = await pool.query(
-      `SELECT
-         s.student_id,
-         s.roll_no,
-         s.first_name,
-         s.last_name,
-         s.class,
-         s.section,
-         s.father_name,
-         s.contact_1,
-         s.contact_2,
-         s.address,
-         s.admission_date,
-         SUM(fp.amount_due)  AS total_due,
-         SUM(fp.amount_paid) AS total_paid,
-         SUM(fp.amount_due - fp.amount_paid) AS balance
-       FROM students s
-       JOIN fee_payments fp
-         ON fp.student_id = s.student_id
-         AND DATE_TRUNC('month', fp.academic_month) >= DATE_TRUNC('month', s.admission_date)
-         AND DATE_TRUNC('month', fp.academic_month) <= DATE_TRUNC('month', $1::DATE)
-       WHERE s.admission_date <= $1::DATE
-       GROUP BY s.student_id, s.roll_no, s.first_name, s.last_name,
-                s.class, s.section, s.father_name, s.contact_1, s.contact_2,
-                s.address, s.admission_date
-       HAVING SUM(fp.amount_due - fp.amount_paid) > 0
-       ORDER BY balance DESC`,
+      `WITH student_months AS (
+         SELECT s.student_id,
+                s.roll_no,
+                s.first_name,
+                s.last_name,
+                s.class,
+                s.section,
+                s.father_name,
+                s.contact_1,
+                s.contact_2,
+                s.address,
+                s.admission_date,
+                generate_series(
+                  DATE_TRUNC('month', s.admission_date),
+                  DATE_TRUNC('month', $1::DATE),
+                  INTERVAL '1 month'
+                )::date AS academic_month
+         FROM students s
+         WHERE s.admission_date <= $1::DATE
+       ),
+       payment_agg AS (
+         SELECT fp.student_id,
+                DATE_TRUNC('month', fp.academic_month)::date AS academic_month,
+                SUM(fp.amount_due)  AS amount_due,
+                SUM(fp.amount_paid) AS amount_paid
+         FROM fee_payments fp
+         WHERE DATE_TRUNC('month', fp.academic_month) <= DATE_TRUNC('month', $1::DATE)
+         GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month)
+       )
+       SELECT sm.student_id,
+              sm.roll_no,
+              sm.first_name,
+              sm.last_name,
+              sm.class,
+              sm.section,
+              sm.father_name,
+              sm.contact_1,
+              sm.contact_2,
+              sm.address,
+              COUNT(*) FILTER (
+                WHERE pa.amount_due IS NULL
+                   OR COALESCE(pa.amount_paid, 0) < COALESCE(pa.amount_due, 0)
+              ) AS overdue_months,
+              SUM(COALESCE(pa.amount_due, 0))  AS total_due,
+              SUM(COALESCE(pa.amount_paid, 0)) AS total_paid,
+              SUM(COALESCE(pa.amount_due, 0) - COALESCE(pa.amount_paid, 0)) AS balance
+       FROM student_months sm
+       LEFT JOIN payment_agg pa
+         ON pa.student_id = sm.student_id
+         AND pa.academic_month = sm.academic_month
+       GROUP BY sm.student_id, sm.roll_no, sm.first_name, sm.last_name,
+                sm.class, sm.section, sm.father_name, sm.contact_1,
+                sm.contact_2, sm.address, sm.admission_date
+       HAVING COUNT(*) FILTER (
+                WHERE pa.amount_due IS NULL
+                   OR COALESCE(pa.amount_paid, 0) < COALESCE(pa.amount_due, 0)
+              ) > 0
+       ORDER BY overdue_months DESC, sm.class, sm.section, sm.roll_no`,
       [month]
     );
-    res.json({ count: rows.length, month, defaulters: rows });
+    const totalOverdueMonths = rows.reduce((sum, row) => sum + Number(row.overdue_months || 0), 0);
+    res.json({ count: rows.length, month, total_overdue_months: totalOverdueMonths, defaulters: rows });
   } catch (err) { next(err); }
 });
 

@@ -96,7 +96,7 @@
     <div class="stats-grid" id="feeStats">
       <div class="stat-card"><div class="label">Collected (Month)</div><div class="value" id="fStatCollected">—</div></div>
       <div class="stat-card"><div class="label">Due (Month)</div><div class="value" id="fStatDue">—</div></div>
-      <div class="stat-card"><div class="label">Defaulters</div><div class="value" id="fStatDefaulters">—</div></div>
+      <div class="stat-card"><div class="label">Monthly Defaulters</div><div class="value" id="fStatDefaulters">—</div></div>
       <div class="stat-card"><div class="label">Collected Today</div><div class="value" id="fStatToday">—</div></div>
     </div>
 
@@ -104,7 +104,6 @@
     <div style="display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid #ddd;">
       <button class="tab-btn active" id="tab-monthly" onclick="switchTab('monthly')">Monthly Records</button>
       <button class="tab-btn" id="tab-daily" onclick="switchTab('daily')">Daily Collections</button>
-      <button class="tab-btn" id="tab-defaulters" onclick="switchTab('defaulters')">Defaulters</button>
       <button class="tab-btn" id="tab-monthly-defaulters" onclick="switchTab('monthly-defaulters')">Monthly Defaulters</button>
       <button class="tab-btn" id="tab-history" onclick="switchTab('history')">Student History</button>
     </div>
@@ -160,25 +159,6 @@
           </table>
         </div>
         <div id="dailyTotal" style="text-align:right;font-size:13px;font-weight:600;padding:10px 0 0;color:#2d7a4f;"></div>
-      </div>
-    </div>
-
-    <!-- DEFAULTERS TAB -->
-    <div id="tab-defaulters-content" style="display:none;">
-      <div class="card" style="margin-bottom:12px;">
-        <div class="filters">
-          <label style="font-size:12px;color:#666;">Month:</label>
-          <input type="month" id="defaulterMonthFilter" onchange="loadDefaulters()"/>
-          <span id="defaultersCountLabel" style="font-size:12px;color:#888;margin-left:auto;"></span>
-        </div>
-      </div>
-      <div class="card">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Roll</th><th>Student</th><th>Class</th><th>Section</th><th>Father</th><th>Contact</th><th>Amount Due</th><th>Action</th></tr></thead>
-            <tbody id="defaultersBody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -277,7 +257,6 @@
     const todayStr = new Date().toISOString().slice(0,10);
     const monthStr = new Date().toISOString().slice(0,7);
     document.getElementById('monthFilter').value = monthStr;
-    document.getElementById('defaulterMonthFilter').value = monthStr;
     document.getElementById('monthlyDefaulterMonthFilter').value = monthStr;
     document.getElementById('dailyDateFilter').value = todayStr;
     document.getElementById('payMonth').value = monthStr;
@@ -305,21 +284,17 @@
     async function loadStats() {
   try {
     const month = document.getElementById('monthFilter').value;
-    const [feeSum, todayFees, defaultersRes] = await Promise.all([
+    const [feeSum, todayFees, monthlyDefaultersRes] = await Promise.all([
       api('GET', `/api/fees/summary/monthly?month=${month}-01`),
       api('GET', `/api/fees/daily?date=${todayStr}`),
-      // "Defaulters" KPI is deliberately tied to the CURRENT real month
-      // (monthStr), not whatever month is selected in the Monthly
-      // Records filter above — it's meant to show the total/current
-      // outstanding count, not a historical snapshot.
-      api('GET', `/api/fees/defaulters?month=${monthStr}-01`)
+      api('GET', `/api/fees/monthly-defaulters?month=${month}-01`)
     ]);
 
     document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_paid || 0);
     document.getElementById('fStatDue').textContent       = formatMoney(feeSum.total_due  || 0);
 
-    // ✅ read from the actual defaulters response
-    const defaulterCount = defaultersRes?.count ?? normalizeList(defaultersRes, ['defaulters']).length;
+    const defaulterCount = monthlyDefaultersRes?.total_overdue_months ??
+      normalizeList(monthlyDefaultersRes, ['defaulters']).reduce((sum, r) => sum + (+r.overdue_months || 0), 0);
     document.getElementById('fStatDefaulters').textContent = defaulterCount;
 
     const todayTotal = normalizeList(todayFees, ['payments','data'])
@@ -425,35 +400,6 @@
       }
     }
 
-    async function loadDefaulters() {
-      const tbody = document.getElementById('defaultersBody');
-      const countLabel = document.getElementById('defaultersCountLabel');
-      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
-      countLabel.textContent = '';
-      const month = document.getElementById('defaulterMonthFilter').value;
-      try {
-        const raw  = await api('GET', `/api/fees/defaulters?month=${month + '-01'}`);
-        const data = normalizeList(raw, ['defaulters', 'data']);
-        countLabel.textContent = `${data.length} defaulter${data.length !== 1 ? 's' : ''}`;
-        if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="8" class="empty">No defaulters. 🎉</td></tr>'; return;
-        }
-        tbody.innerHTML = data.map(r => `
-          <tr>
-            <td>${r.roll_no}</td>
-            <td>${r.first_name} ${r.last_name}</td>
-            <td>${r.class}</td><td>${r.section}</td>
-            <td>${r.father_name || '—'}</td>
-            <td>${r.contact_1 || '—'}</td>
-            <td class="fee-unpaid">${formatMoney(r.amount_due)}</td>
-            <td><button class="btn btn-warning btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${r.amount_due},0)">Collect</button></td>
-          </tr>`).join('');
-      } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load.</td></tr>';
-        countLabel.textContent = '';
-      }
-    }
-
     async function loadMonthlyDefaulters() {
       const tbody = document.getElementById('monthlyDefaultersBody');
       const countLabel = document.getElementById('monthlyDefaultersCountLabel');
@@ -464,7 +410,8 @@
         const raw = await api('GET', `/api/fees/monthly-defaulters?month=${month + '-01'}`);
         const data = normalizeList(raw, ['defaulters', 'data']);
         currentMonthlyDefaultersList = data;
-        countLabel.textContent = `${data.length} monthly defaulter${data.length !== 1 ? 's' : ''}`;
+        const overdueCount = data.reduce((sum, r) => sum + (+r.overdue_months || 0), 0);
+        countLabel.textContent = `${overdueCount} overdue month${overdueCount !== 1 ? 's' : ''}`;
         if (!data.length) {
           tbody.innerHTML = '<tr><td colspan="8" class="empty">No monthly defaulters. 🎉</td></tr>'; return;
         }
@@ -551,12 +498,11 @@
     }
 
     function switchTab(name) {
-      ['monthly','daily','defaulters','monthly-defaulters','history'].forEach(t => {
+      ['monthly','daily','monthly-defaulters','history'].forEach(t => {
         document.getElementById(`tab-${t}-content`).style.display = t === name ? '' : 'none';
         document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
       });
       if (name === 'daily') loadDailyRecords();
-      if (name === 'defaulters') loadDefaulters();
       if (name === 'monthly-defaulters') loadMonthlyDefaulters();
     }
 

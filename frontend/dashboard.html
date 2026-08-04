@@ -35,6 +35,7 @@
       <div class="stat-card"><div class="label">Total Staff</div><div class="value" id="statStaff">—</div></div>
       <div class="stat-card"><div class="label">Fee Collected (Month)</div><div class="value" id="statFeeMonth">—</div></div>
       <div class="stat-card"><div class="label">Expenses (Month)</div><div class="value" id="statExpMonth">—</div></div>
+      <div class="stat-card"><div class="label">Overdue Months</div><div class="value" id="statOverdueMonths">—</div></div>
       <div class="stat-card"><div class="label">Balance (Month)</div><div class="value" id="statBalance">—</div></div>
     </div>
 
@@ -131,7 +132,7 @@
     }
 
     // ── Stats cards ───────────────────────────────────────────────────────────
- async function loadStats() {
+    async function loadStats() {
   try {
     const month = monthPicker.value;
     const monthDate = month + '-01';
@@ -142,26 +143,30 @@
       api('GET', '/api/students'),
       api('GET', '/api/staff'),
       api('GET', `/api/fees/summary/monthly?month=${monthDate}`),
-      // Use the range query that is confirmed to work
+      api('GET', `/api/fees/monthly-defaulters?month=${monthDate}`),
       api('GET', `/api/expenses?from=${monthDate}&to=${monthEnd}`)
     ]);
 
     const studentsRes = results[0];
     const staffRes = results[1];
     const feeSumRes = results[2];
-    const expListRes = results[3];
+    const defaultersRes = results[3];
+    const expListRes = results[4];
 
-    // Students & Staff
     if (studentsRes.status === 'fulfilled')
       document.getElementById('statStudents').textContent = toList(studentsRes.value).length;
-    
     if (staffRes.status === 'fulfilled')
       document.getElementById('statStaff').textContent = toList(staffRes.value).length;
 
-    // Fees
     const feeSumVal = feeSumRes.status === 'fulfilled' ? feeSumRes.value : null;
     const collected = +(feeSumVal?.total_paid ?? feeSumVal?.total_collected ?? feeSumVal?.total ?? 0);
     document.getElementById('statFeeMonth').textContent = formatMoney(collected);
+
+    const overdueMonthsVal = defaultersRes.status === 'fulfilled' ? defaultersRes.value : null;
+    const overdueMonths = Number.isFinite(Number(overdueMonthsVal?.total_overdue_months))
+      ? Number(overdueMonthsVal.total_overdue_months)
+      : toList(overdueMonthsVal?.defaulters || overdueMonthsVal).reduce((sum, r) => sum + (+r.overdue_months || 0), 0);
+    document.getElementById('statOverdueMonths').textContent = overdueMonths;
 
     // Expenses: Safely normalize the response
     const rawExp = expListRes.status === 'fulfilled' ? expListRes.value : {};
@@ -216,23 +221,29 @@
       const el    = document.getElementById('defaultersList');
       const month = monthPicker.value + '-01';              // "YYYY-MM-01"
       try {
-        const data = toList(await api('GET', `/api/fees/defaulters?month=${month}`));
+        const res = await api('GET', `/api/fees/monthly-defaulters?month=${month}`);
+        const data = toList(res.defaulters || res);
+        const totalOverdue = res.total_overdue_months ?? data.reduce((sum, r) => sum + (+r.overdue_months || 0), 0);
 
         if (!data.length) {
-          el.innerHTML = '<p class="empty">No defaulters this month. 🎉</p>';
+          el.innerHTML = '<p class="empty">No overdue months this month. 🎉</p>';
           return;
         }
 
         el.innerHTML = `
+          <div style="margin-bottom:10px;font-size:13px;color:#555;">
+            Total overdue months: <strong>${totalOverdue}</strong>
+          </div>
           <table>
-            <thead><tr><th>Student</th><th>Class</th><th>Due</th><th>Paid</th></tr></thead>
+            <thead><tr><th>Student</th><th>Class</th><th>Overdue Months</th><th>Due</th><th>Paid</th></tr></thead>
             <tbody>
               ${data.slice(0, 8).map(r => `
                 <tr>
                   <td>${r.first_name} ${r.last_name}</td>
                   <td>${r.class}-${r.section}</td>
-                  <td class="fee-unpaid">${formatMoney(r.amount_due)}</td>
-                  <td>${formatMoney(r.amount_paid)}</td>
+                  <td>${r.overdue_months || 0}</td>
+                  <td class="fee-unpaid">${formatMoney(r.total_due)}</td>
+                  <td>${formatMoney(r.total_paid)}</td>
                 </tr>`).join('')}
             </tbody>
           </table>
