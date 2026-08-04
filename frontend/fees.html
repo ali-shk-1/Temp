@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script> 
+ 
+  <title>Fees — School Management</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <!-- Record Payment Modal -->
+  <div class="modal-overlay" id="paymentModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="payModalTitle">Record Fee Payment</h2>
+        <button class="modal-close" onclick="closePayModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <input type="hidden" id="payStudentId"/>
+        <div class="form-group" style="position:relative;">
+          <label>Student *</label>
+          <input type="hidden" id="payStudentSel"/>
+          <input type="text" id="payStudentSearch" placeholder="Type roll no. or name…"
+                 autocomplete="off"
+                 oninput="onStudentSearchInput()"
+                 onfocus="onStudentSearchInput()"
+                 style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;"/>
+          <div id="payStudentResults" style="display:none;position:absolute;z-index:20;left:0;right:0;top:100%;background:#fff;border:1px solid #ccc;border-top:none;max-height:180px;overflow-y:auto;box-shadow:0 4px 8px rgba(0,0,0,.08);"></div>
+        </div>
+        <div class="form-group">
+          <label>Academic Month *</label>
+          <input type="month" id="payMonth"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount Due (Rs.)</label>
+            <input type="number" id="payDue" step="0.01" placeholder="0"/>
+          </div>
+          <div class="form-group">
+            <label>Amount Paid (Rs.) *</label>
+            <input type="number" id="payPaid" step="0.01" placeholder="0"/>
+          </div>
+        </div>
+        <div id="existingPayInfo" style="display:none;background:#fff8e1;border:1px solid #ffe082;padding:10px;border-radius:4px;font-size:12px;margin-bottom:10px;"></div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closePayModal()">Cancel</button>
+          <button class="btn btn-success" onclick="savePayment()">Record Payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Fee Management</h1>
+      <button class="btn btn-success" onclick="openPayModal()">+ Record Payment</button>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-grid" id="feeStats">
+      <div class="stat-card"><div class="label">Collected (Month)</div><div class="value" id="fStatCollected">—</div></div>
+      <div class="stat-card"><div class="label">Due (Month)</div><div class="value" id="fStatDue">—</div></div>
+      <div class="stat-card"><div class="label">Defaulters</div><div class="value" id="fStatDefaulters">—</div></div>
+      <div class="stat-card"><div class="label">Collected Today</div><div class="value" id="fStatToday">—</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid #ddd;">
+      <button class="tab-btn active" id="tab-monthly" onclick="switchTab('monthly')">Monthly Records</button>
+      <button class="tab-btn" id="tab-daily" onclick="switchTab('daily')">Daily Collections</button>
+      <button class="tab-btn" id="tab-defaulters" onclick="switchTab('defaulters')">Defaulters</button>
+      <button class="tab-btn" id="tab-history" onclick="switchTab('history')">Student History</button>
+    </div>
+
+    <!-- MONTHLY TAB -->
+    <div id="tab-monthly-content">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="filters">
+          <label style="font-size:12px;color:#666;">Month:</label>
+          <input type="month" id="monthFilter" onchange="loadMonthlyRecords()"/>
+          <select id="classFilter" onchange="loadMonthlyRecords()">
+            <option value="">All Classes</option>
+            <option>Nursery</option><option>KG</option>
+            <option>1</option><option>2</option><option>3</option>
+            <option>4</option><option>5</option><option>6</option>
+            <option>7</option><option>8</option><option>9</option><option>10</option>
+          </select>
+          <select id="statusFilter" onchange="filterMonthly()">
+            <option value="">All Status</option>
+            <option value="paid">Paid</option>
+            <option value="partial">Partial</option>
+            <option value="unpaid">Unpaid</option>
+          </select>
+          <input type="text" placeholder="Search student…" id="feeSearch" oninput="filterMonthly()" style="padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;width:180px;"/>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Roll</th><th>Student</th><th>Class</th><th>Section</th>
+              <th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th><th>Action</th>
+            </tr></thead>
+            <tbody id="monthlyBody"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DAILY TAB -->
+    <div id="tab-daily-content" style="display:none;">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="filters">
+          <label style="font-size:12px;color:#666;">Date:</label>
+          <input type="date" id="dailyDateFilter" onchange="loadDailyRecords()"/>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Student</th><th>Class</th><th>Section</th><th>Month</th><th>Amount Paid</th><th>Time</th></tr></thead>
+            <tbody id="dailyBody"><tr><td colspan="6" class="loading">Select date</td></tr></tbody>
+          </table>
+        </div>
+        <div id="dailyTotal" style="text-align:right;font-size:13px;font-weight:600;padding:10px 0 0;color:#2d7a4f;"></div>
+      </div>
+    </div>
+
+    <!-- DEFAULTERS TAB -->
+    <div id="tab-defaulters-content" style="display:none;">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="filters">
+          <label style="font-size:12px;color:#666;">Month:</label>
+          <input type="month" id="defaulterMonthFilter" onchange="loadDefaulters()"/>
+          <span id="defaultersCountLabel" style="font-size:12px;color:#888;margin-left:auto;"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Roll</th><th>Student</th><th>Class</th><th>Section</th><th>Father</th><th>Contact</th><th>Amount Due</th><th>Action</th></tr></thead>
+            <tbody id="defaultersBody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div id="tab-history-content" style="display:none;">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="filters">
+          <select id="historyStudentSel" onchange="loadStudentHistory()" style="min-width:220px;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
+            <option value="">Select a student…</option>
+          </select>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Month</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody id="historyBody"><tr><td colspan="6" class="empty">Select a student above.</td></tr></tbody>
+          </table>
+        </div>
+        <div id="historyTotal" style="padding:8px 0 0;font-size:13px;color:#555;"></div>
+      </div>
+    </div>
+
+  </div><!-- /page -->
+
+  <style>
+    .tab-btn {
+      background:none;border:none;padding:8px 18px;font-size:13px;cursor:pointer;
+      color:#666;border-bottom:2px solid transparent;font-weight:500;
+    }
+    .tab-btn.active { color:#1a1a2e;border-bottom-color:#1a1a2e; }
+    .tab-btn:hover { color:#1a1a2e; }
+  </style>
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    checkAuth();
+    renderNav('fees');
+
+    let allStudents = [];
+    let monthlyData = [];
+
+    // Set default month/date
+    const todayStr = new Date().toISOString().slice(0,10);
+    const monthStr = new Date().toISOString().slice(0,7);
+    document.getElementById('monthFilter').value = monthStr;
+    document.getElementById('defaulterMonthFilter').value = monthStr;
+    document.getElementById('dailyDateFilter').value = todayStr;
+    document.getElementById('payMonth').value = monthStr;
+
+    async function init() {
+      await loadStudents();
+      await loadMonthlyRecords();
+      loadStats();
+    }
+
+    async function loadStudents() {
+      try {
+        const res = await api('GET', '/api/students');
+        allStudents = normalizeList(res, ['students', 'data']);
+        allStudents.sort((a,b) => a.class.localeCompare(b.class) || a.roll_no - b.roll_no);
+        // History dropdown
+        const hSel = document.getElementById('historyStudentSel');
+        hSel.innerHTML = '<option value="">Select a student…</option>';
+        allStudents.forEach(s => {
+          hSel.innerHTML += `<option value="${s.student_id}">${s.class}-${s.section} | ${s.first_name} ${s.last_name}</option>`;
+        });
+      } catch(e) { console.error(e); }
+    }
+
+    async function loadStats() {
+  try {
+    const month = document.getElementById('monthFilter').value;
+    const [feeSum, todayFees, defaultersRes] = await Promise.all([
+      api('GET', `/api/fees/summary/monthly?month=${month}-01`),
+      api('GET', `/api/fees/daily?date=${todayStr}`),
+      // "Defaulters" KPI is deliberately tied to the CURRENT real month
+      // (monthStr), not whatever month is selected in the Monthly
+      // Records filter above — it's meant to show the total/current
+      // outstanding count, not a historical snapshot.
+      api('GET', `/api/fees/defaulters?month=${monthStr}-01`)
+    ]);
+
+    document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_paid || 0);
+    document.getElementById('fStatDue').textContent       = formatMoney(feeSum.total_due  || 0);
+
+    // ✅ read from the actual defaulters response
+    const defaulterCount = defaultersRes?.count ?? normalizeList(defaultersRes, ['defaulters']).length;
+    document.getElementById('fStatDefaulters').textContent = defaulterCount;
+
+    const todayTotal = normalizeList(todayFees, ['payments','data'])
+      .reduce((s, r) => s + (+r.amount_paid || 0), 0);
+    document.getElementById('fStatToday').textContent = formatMoney(todayTotal);
+
+  } catch(e) { console.error('loadStats error:', e); }  // never leave catch empty
+}
+
+    async function loadMonthlyRecords() {
+      const tbody = document.getElementById('monthlyBody');
+      tbody.innerHTML = '<tr><td colspan="10" class="loading">Loading…</td></tr>';
+      const month = document.getElementById('monthFilter').value;
+      const cls   = document.getElementById('classFilter').value;
+      try {
+        let url = `/api/fees?month=${month}-01`;
+        if (cls) url += `&class=${cls}`;
+        const raw = await api('GET', url);
+        dbg('fees monthly raw', raw);
+        monthlyData = normalizeList(raw, ['fees', 'payments', 'data']);
+        loadStats();
+        filterMonthly();
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    function filterMonthly() {
+      const tbody = document.getElementById('monthlyBody');
+      const status = document.getElementById('statusFilter').value;
+      const q = document.getElementById('feeSearch').value.toLowerCase().trim();
+      let list = monthlyData;
+      if (q) list = list.filter(r =>
+        `${r.first_name} ${r.last_name}`.toLowerCase().includes(q) ||
+        String(r.roll_no || '').toLowerCase().includes(q)
+      );
+      if (status) {
+        list = list.filter(r => {
+          const due = +r.amount_due, paid = +r.amount_paid;
+          if (status === 'paid')    return paid >= due;
+          if (status === 'partial') return paid > 0 && paid < due;
+          if (status === 'unpaid')  return paid === 0;
+        });
+      }
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">No records found.</td></tr>'; return;
+      }
+      tbody.innerHTML = list.map(r => {
+        const due  = +r.amount_due  || 0;
+        const paid = +r.amount_paid || 0;
+        const bal  = due - paid;
+        let stCls, stLabel;
+        if (paid >= due)   { stCls = 'badge-success'; stLabel = 'Paid'; }
+        else if (paid > 0) { stCls = 'badge-warning'; stLabel = 'Partial'; }
+        else               { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
+        return `<tr>
+          <td>${r.roll_no}</td>
+          <td>${r.first_name} ${r.last_name}</td>
+          <td>${r.class}</td><td>${r.section}</td>
+          <td>${formatMoney(due)}</td>
+          <td class="${paid>=due?'fee-paid':paid>0?'fee-partial':'fee-unpaid'}">${formatMoney(paid)}</td>
+          <td>${bal > 0 ? formatMoney(bal) : '—'}</td>
+          <td><span class="badge ${stCls}">${stLabel}</span></td>
+          <td>${r.payment_date ? formatDate(r.payment_date) : '—'}</td>
+          <td><button class="btn btn-outline btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${due},${paid})">Pay</button></td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadDailyRecords() {
+      const tbody = document.getElementById('dailyBody');
+      const totalEl = document.getElementById('dailyTotal');
+      tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+      const date = document.getElementById('dailyDateFilter').value;
+      try {
+        const raw  = await api('GET', `/api/fees/daily?date=${date}`);
+        const data = normalizeList(raw, ['payments', 'data']);
+        if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No payments on this date.</td></tr>';
+          totalEl.textContent = '';
+          return;
+        }
+        tbody.innerHTML = data.map(r => `
+          <tr>
+            <td>${r.first_name} ${r.last_name}</td>
+            <td>${r.class}</td><td>${r.section}</td>
+            <td>${r.academic_month ? new Date(r.academic_month).toLocaleDateString('en-GB',{month:'long',year:'numeric'}) : '—'}</td>
+            <td class="fee-paid">${formatMoney(r.amount_paid)}</td>
+            <td style="font-size:12px;color:#888;">${r.payment_date ? new Date(r.payment_date).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+          </tr>`).join('');
+        const total = data.reduce((s,r) => s + +r.amount_paid, 0);
+        totalEl.textContent = `Total Collected: ${formatMoney(total)}`;
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    async function loadDefaulters() {
+      const tbody = document.getElementById('defaultersBody');
+      const countLabel = document.getElementById('defaultersCountLabel');
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
+      countLabel.textContent = '';
+      const month = document.getElementById('defaulterMonthFilter').value;
+      try {
+       const raw  = await api('GET', `/api/fees/defaulters?month=${month + '-01'}`);
+      const data = normalizeList(raw, ['defaulters', 'data']);
+      countLabel.textContent = `${data.length} defaulter${data.length !== 1 ? 's' : ''}`;
+      if (!data.length) {
+     tbody.innerHTML = '<tr><td colspan="8" class="empty">No defaulters. 🎉</td></tr>'; return;
+        }
+        tbody.innerHTML = data.map(r => `
+          <tr>
+            <td>${r.roll_no}</td>
+            <td>${r.first_name} ${r.last_name}</td>
+            <td>${r.class}</td><td>${r.section}</td>
+            <td>${r.father_name || '—'}</td>
+            <td>${r.contact_1 || '—'}</td>
+            <td class="fee-unpaid">${formatMoney(r.amount_due)}</td>
+            <td><button class="btn btn-warning btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${r.amount_due},0)">Collect</button></td>
+          </tr>`).join('');
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load.</td></tr>';
+        countLabel.textContent = '';
+      }
+    }
+
+    async function loadStudentHistory() {
+      const id = document.getElementById('historyStudentSel').value;
+      const tbody = document.getElementById('historyBody');
+      const totalEl = document.getElementById('historyTotal');
+      if (!id) { tbody.innerHTML = '<tr><td colspan="6" class="empty">Select a student above.</td></tr>'; return; }
+      tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+      try {
+        const res  = await api('GET', `/api/fees/student/${id}`);
+        dbg('student history raw', res);
+        const data = normalizeList(res, ['payments', 'fees', 'data']);
+        if (!data || !data.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty">No payment history.</td></tr>';
+          totalEl.textContent = '';
+          return;
+        }
+        let totalDue = 0, totalPaid = 0;
+        tbody.innerHTML = data.map(r => {
+          const due  = +r.amount_due  || 0;
+          const paid = +r.amount_paid || 0;
+          const bal  = due - paid;
+          totalDue  += due; totalPaid += paid;
+          let stCls, stLabel;
+          if (paid >= due)   { stCls = 'badge-success'; stLabel = 'Paid'; }
+          else if (paid > 0) { stCls = 'badge-warning'; stLabel = 'Partial'; }
+          else               { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
+          return `<tr>
+            <td>${r.academic_month ? new Date(r.academic_month).toLocaleDateString('en-GB',{month:'long',year:'numeric'}) : '—'}</td>
+            <td>${formatMoney(due)}</td>
+            <td class="${paid>=due?'fee-paid':paid>0?'fee-partial':'fee-unpaid'}">${formatMoney(paid)}</td>
+            <td>${bal > 0 ? formatMoney(bal) : '—'}</td>
+            <td><span class="badge ${stCls}">${stLabel}</span></td>
+            <td>${r.payment_date ? formatDate(r.payment_date) : '—'}</td>
+          </tr>`;
+        }).join('');
+        totalEl.innerHTML = `Total Due: <strong>${formatMoney(totalDue)}</strong> &nbsp;|&nbsp; Total Paid: <strong class="fee-paid">${formatMoney(totalPaid)}</strong> &nbsp;|&nbsp; Outstanding: <strong class="fee-unpaid">${formatMoney(totalDue - totalPaid)}</strong>`;
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    function switchTab(name) {
+      ['monthly','daily','defaulters','history'].forEach(t => {
+        document.getElementById(`tab-${t}-content`).style.display = t === name ? '' : 'none';
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
+      });
+      if (name === 'daily') loadDailyRecords();
+      if (name === 'defaulters') loadDefaulters();
+    }
+
+    function openPayModal() {
+      document.getElementById('payStudentSel').value = '';
+      document.getElementById('payStudentSearch').value = '';
+      document.getElementById('payStudentResults').style.display = 'none';
+      document.getElementById('payMonth').value = monthStr;
+      document.getElementById('payDue').value = '';
+      document.getElementById('payPaid').value = '';
+      document.getElementById('existingPayInfo').style.display = 'none';
+      document.getElementById('payModalTitle').textContent = 'Record Fee Payment';
+      document.getElementById('paymentModal').classList.add('open');
+    }
+
+    function quickPay(studentId, name, due, paid) {
+      openPayModal();
+      document.getElementById('payStudentSel').value = studentId;
+      document.getElementById('payStudentSearch').value = name;
+      document.getElementById('payDue').value  = due;
+      document.getElementById('payPaid').value = due - paid;
+      document.getElementById('payModalTitle').textContent = `Record Payment — ${name}`;
+      onStudentChange();
+    }
+
+    // Searchable student picker for the Record Payment modal —
+    // matches by roll number OR name so you don't have to scroll a huge list.
+    function onStudentSearchInput() {
+      const box = document.getElementById('payStudentResults');
+      const q = document.getElementById('payStudentSearch').value.toLowerCase().trim();
+      document.getElementById('payStudentSel').value = '';
+
+      let matches = allStudents;
+      if (q) {
+        matches = allStudents.filter(s =>
+          String(s.roll_no || '').toLowerCase().includes(q) ||
+          `${s.first_name} ${s.last_name}`.toLowerCase().includes(q)
+        );
+      }
+      matches = matches.slice(0, 30);
+
+      if (!matches.length) {
+        box.innerHTML = '<div style="padding:8px 10px;color:#888;font-size:12px;">No matching student.</div>';
+      } else {
+        box.innerHTML = matches.map(s => `
+          <div class="pay-student-option" style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0;"
+               onmousedown="selectPayStudent(${s.student_id})">
+            Roll ${s.roll_no} — ${s.first_name} ${s.last_name} <span style="color:#888;">(${s.class}-${s.section})</span>
+          </div>`).join('');
+      }
+      box.style.display = 'block';
+    }
+
+    function selectPayStudent(studentId) {
+      const s = allStudents.find(st => st.student_id === studentId);
+      if (!s) return;
+      document.getElementById('payStudentSel').value = studentId;
+      document.getElementById('payStudentSearch').value = `Roll ${s.roll_no} — ${s.first_name} ${s.last_name}`;
+      document.getElementById('payStudentResults').style.display = 'none';
+      onStudentChange();
+    }
+
+    document.addEventListener('click', (e) => {
+      const results = document.getElementById('payStudentResults');
+      if (!results) return;
+      if (!e.target.closest('#payStudentSearch') && !e.target.closest('#payStudentResults')) {
+        results.style.display = 'none';
+      }
+    });
+
+    async function onStudentChange() {
+      const id    = document.getElementById('payStudentSel').value;
+      const month = document.getElementById('payMonth').value;
+      const infoEl = document.getElementById('existingPayInfo');
+      if (!id) { infoEl.style.display = 'none'; return; }
+      try {
+        const res      = await api('GET', `/api/fees/student/${id}`);
+        const data     = normalizeList(res, ['payments', 'fees', 'data']);
+        const existing = data.find(r => r.academic_month && r.academic_month.slice(0,7) === month);
+        if (existing) {
+          infoEl.style.display = 'block';
+          infoEl.innerHTML = `⚠️ Existing record for this month: Due <strong>${formatMoney(existing.amount_due)}</strong>, Paid <strong>${formatMoney(existing.amount_paid)}</strong>. New entry will be added.`;
+        } else {
+          infoEl.style.display = 'none';
+        }
+      } catch(e) {}
+    }
+
+    function closePayModal() {
+      document.getElementById('paymentModal').classList.remove('open');
+    }
+
+    async function savePayment() {
+      const studentId = document.getElementById('payStudentSel').value;
+      const month     = document.getElementById('payMonth').value;
+      const due       = parseFloat(document.getElementById('payDue').value)  || 0;
+      const paid      = parseFloat(document.getElementById('payPaid').value) || 0;
+      if (!studentId) { showToast('Select a student.', 'error'); return; }
+      if (!month)     { showToast('Select a month.', 'error');   return; }
+      if (paid <= 0)  { showToast('Amount paid must be > 0.', 'error'); return; }
+      try {
+        await api('POST', '/api/fees', {
+          student_id:     parseInt(studentId),
+          academic_month: month + '-01',
+          amount_due:     due,
+          amount_paid:    paid
+        });
+        showToast('Payment recorded!', 'success');
+        closePayModal();
+        loadMonthlyRecords();
+        loadStats();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    init();
+  </script>
+</body>
+</html>

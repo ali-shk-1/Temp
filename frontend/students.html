@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+  
+  <title>Students — School Management</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">Add Student</h2>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <form id="studentForm" onsubmit="return false;">
+        <input type="hidden" id="studentId"/>
+        <div class="form-row">
+          <div class="form-group">
+            <label>First Name *</label>
+            <input type="text" id="firstName" required/>
+          </div>
+          <div class="form-group">
+            <label>Last Name *</label>
+            <input type="text" id="lastName" required/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Roll No *</label>
+            <input type="number" id="rollNo" required/>
+          </div>
+          <div class="form-group">
+            <label>Class *</label>
+            <select id="classField">
+              <option value="">Select class</option>
+              <option>Nursery</option><option>KG</option>
+              <option>1</option><option>2</option><option>3</option>
+              <option>4</option><option>5</option><option>6</option>
+              <option>7</option><option>8</option><option>9</option><option>10</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Section *</label>
+            <input type="text" id="section" placeholder="e.g. A" maxlength="5"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Father's Name</label>
+            <input type="text" id="fatherName"/>
+          </div>
+          <div class="form-group">
+            <label>Admission Date</label>
+            <input type="date" id="admissionDate"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Contact 1</label>
+            <input type="text" id="contact1" placeholder="03xxxxxxxxx"/>
+          </div>
+          <div class="form-group">
+            <label>Contact 2</label>
+            <input type="text" id="contact2" placeholder="Optional"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Address</label>
+          <textarea id="address" rows="2"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveStudent()">Save Student</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Students</h1>
+      <button class="btn btn-primary" onclick="openModal()">+ Add Student</button>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="filters">
+        <input class="search-box" type="text" id="searchInput" placeholder="Search name, roll no…" oninput="filterTable()"/>
+        <select id="filterClass" onchange="filterTable()">
+          <option value="">All Classes</option>
+          <option>Nursery</option><option>KG</option>
+          <option>1</option><option>2</option><option>3</option>
+          <option>4</option><option>5</option><option>6</option>
+          <option>7</option><option>8</option><option>9</option><option>10</option>
+        </select>
+        <select id="filterSection" onchange="filterTable()">
+          <option value="">All Sections</option>
+          <option>A</option><option>B</option><option>C</option>
+        </select>
+        <span id="countLabel" style="font-size:12px;color:#888;margin-left:auto;"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
+              <th>Father</th><th>Contact</th><th>Admitted</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="studentTableBody">
+            <tr><td colspan="8" class="loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    checkAuth();
+    renderNav('students');
+
+    let allStudents = [];
+    const todayStr = new Date().toISOString().slice(0,10);
+
+    async function loadStudents() {
+      const tbody = document.getElementById('studentTableBody');
+      try {
+        const res = await api('GET', '/api/students');
+        dbg('students raw', res);
+        allStudents = normalizeList(res, ['students', 'data']);
+        renderTable(allStudents);
+      } catch(e) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty">Failed to load students.</td></tr>`;
+      }
+    }
+
+    function renderTable(list) {
+      const tbody = document.getElementById('studentTableBody');
+      document.getElementById('countLabel').textContent = `${list.length} student${list.length !== 1 ? 's' : ''}`;
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">No students found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(s => `
+        <tr>
+          <td>${s.roll_no}</td>
+          <td><strong>${s.first_name} ${s.last_name}</strong></td>
+          <td>${s.class}</td>
+          <td>${s.section}</td>
+          <td>${s.father_name || '—'}</td>
+          <td>${s.contact_1 || '—'}</td>
+          <td style="font-size:12px;color:#888;">${s.admission_date ? formatDate(s.admission_date) : '—'}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" onclick="editStudent(${s.student_id})">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.student_id})">Delete</button>
+            </td>
+        </tr>`).join('');
+    }
+
+    function filterTable() {
+      const q     = document.getElementById('searchInput').value.toLowerCase();
+      const cls   = document.getElementById('filterClass').value;
+      const sect  = document.getElementById('filterSection').value;
+      const list  = allStudents.filter(s => {
+        const name = `${s.first_name} ${s.last_name} ${s.roll_no}`.toLowerCase();
+        return (!q || name.includes(q))
+          && (!cls  || s.class   === cls)
+          && (!sect || s.section === sect);
+      });
+      renderTable(list);
+    }
+
+    function openModal(student = null) {
+      document.getElementById('studentId').value    = student ? student.student_id : '';
+      document.getElementById('firstName').value    = student ? student.first_name  : '';
+      document.getElementById('lastName').value     = student ? student.last_name   : '';
+      document.getElementById('rollNo').value       = student ? student.roll_no     : '';
+      document.getElementById('classField').value   = student ? student.class       : '';
+      document.getElementById('section').value      = student ? student.section     : '';
+      document.getElementById('fatherName').value   = student ? (student.father_name || '') : '';
+      document.getElementById('admissionDate').value = student
+        ? (student.admission_date ? student.admission_date.slice(0,10) : '')
+        : todayStr;
+      document.getElementById('contact1').value     = student ? (student.contact_1  || '') : '';
+      document.getElementById('contact2').value     = student ? (student.contact_2  || '') : '';
+      document.getElementById('address').value      = student ? (student.address    || '') : '';
+      document.getElementById('modalTitle').textContent = student ? 'Edit Student' : 'Add Student';
+      document.getElementById('modalOverlay').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('open');
+    }
+
+    function editStudent(id) {
+      const s = allStudents.find(x => x.student_id === id);
+      if (s) openModal(s);
+    }
+
+    async function saveStudent() {
+      const id = document.getElementById('studentId').value;
+      const body = {
+        first_name:  document.getElementById('firstName').value.trim(),
+        last_name:   document.getElementById('lastName').value.trim(),
+        roll_no:     parseInt(document.getElementById('rollNo').value),
+        class:       document.getElementById('classField').value,
+        section:     document.getElementById('section').value.trim().toUpperCase(),
+        father_name: document.getElementById('fatherName').value.trim(),
+        admission_date: document.getElementById('admissionDate').value || null,
+        contact_1:   document.getElementById('contact1').value.trim(),
+        contact_2:   document.getElementById('contact2').value.trim(),
+        address:     document.getElementById('address').value.trim(),
+      };
+      if (!body.first_name || !body.last_name || !body.roll_no || !body.class || !body.section) {
+        showToast('Please fill all required fields.', 'error'); return;
+      }
+      try {
+        if (id) {
+          await api('PUT', `/api/students/${id}`, body);
+          showToast('Student updated.', 'success');
+        } else {
+          await api('POST', '/api/students', body);
+          showToast('Student added.', 'success');
+        }
+        closeModal();
+        loadStudents();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function deleteStudent(id) {
+  const s = allStudents.find(x => x.student_id === id);
+  const name = s ? `${s.first_name} ${s.last_name}` : 'this student';
+  if (!confirm(`Delete student "${name}"? This cannot be undone.`)) return;
+    try {
+        await api('DELETE', `/api/students/${id}`);
+        showToast('Student deleted.');
+        loadStudents();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    loadStudents();
+  </script>
+</body>
+</html>

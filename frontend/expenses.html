@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <title>Expenses — School Management</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <!-- Add Expense Modal -->
+  <div class="modal-overlay" id="expenseModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="expModalTitle">Add Expense</h2>
+        <button class="modal-close" onclick="closeExpModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <input type="hidden" id="expenseId"/>
+        <div class="form-group">
+          <label>Category *</label>
+          <select id="expCategory">
+            <option value="">Select category…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Amount (Rs.) *</label>
+          <input type="number" id="expAmount" step="0.01" placeholder="0.00"/>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="expDesc" rows="2" placeholder="Optional details…"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="expDate"/>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeExpModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Category Modal -->
+  <div class="modal-overlay" id="catModal">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Manage Categories</h2>
+        <button class="modal-close" onclick="closeCatModal()">×</button>
+      </div>
+      <div class="form-group">
+        <label>New Category Name</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="newCatName" placeholder="e.g. Utilities" class="mini-input" style="flex:1;"/>
+          <button class="btn btn-primary" onclick="addCategory()">Add</button>
+        </div>
+      </div>
+      <div id="catList" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Expenses</h1>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline" onclick="openCatModal()">Categories</button>
+        <button class="btn btn-primary" onclick="openExpModal()">+ Add Expense</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card"><div class="label">This Month</div><div class="value" id="expStatMonth">—</div></div>
+      <div class="stat-card"><div class="label">Today</div><div class="value" id="expStatToday">—</div></div>
+      <div class="stat-card"><div class="label">This Year</div><div class="value" id="expStatYear">—</div></div>
+      <div class="stat-card"><div class="label">Top Category (Month)</div><div class="value" id="expStatTopCat" style="font-size:14px;">—</div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="filters">
+        <label class="text-muted" style="font-size:12px;">From:</label>
+        <input type="date" id="dateFrom" onchange="loadExpenses()"/>
+        <label class="text-muted" style="font-size:12px;">To:</label>
+        <input type="date" id="dateTo"   onchange="loadExpenses()"/>
+        <select id="catFilter" onchange="loadExpenses()">
+          <option value="">All Categories</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="setThisMonth()">This Month</button>
+        <button class="btn btn-outline btn-sm" onclick="setToday()">Today</button>
+        <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
+      </div>
+    </div>
+
+    <!-- Two-column layout: table + category breakdown -->
+    <div class="grid-2-1">
+
+      <div class="card">
+        <div class="section-title" id="expTableTitle">All Expenses</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Actions</th></tr></thead>
+            <tbody id="expTableBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div id="expTotal" class="amount-danger" style="text-align:right;font-size:13px;padding:10px 0 0;"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">By Category</div>
+        <div id="catBreakdown" class="loading">Loading…</div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    checkAuth();
+    renderNav('expenses');
+
+    let categories = [];
+    const todayStr = new Date().toISOString().slice(0,10);
+    const monthStart = todayStr.slice(0,7) + '-01';
+    const monthEnd   = todayStr;
+
+    // Set default: this month
+    document.getElementById('dateFrom').value = monthStart;
+    document.getElementById('dateTo').value   = monthEnd;
+    document.getElementById('expDate').value  = todayStr;
+
+    function setThisMonth() {
+      document.getElementById('dateFrom').value = monthStart;
+      document.getElementById('dateTo').value   = monthEnd;
+      loadExpenses();
+    }
+    function setToday() {
+      document.getElementById('dateFrom').value = todayStr;
+      document.getElementById('dateTo').value   = todayStr;
+      loadExpenses();
+    }
+    function clearFilters() {
+      document.getElementById('dateFrom').value = '';
+      document.getElementById('dateTo').value   = '';
+      document.getElementById('catFilter').value = '';
+      loadExpenses();
+    }
+
+    async function init() {
+      await loadCategories();
+      await Promise.all([loadExpenses(), loadStats()]);
+    }
+
+    async function loadCategories() {
+      try {
+        const catRaw = await api('GET', '/api/expenses/categories');
+        dbg('categories raw', catRaw);
+        categories = normalizeList(catRaw, ['categories', 'data']);
+        const sel  = document.getElementById('expCategory');
+        const fsel = document.getElementById('catFilter');
+        sel.innerHTML  = '<option value="">Select category…</option>';
+        fsel.innerHTML = '<option value="">All Categories</option>';
+        categories.forEach(c => {
+          sel.innerHTML  += `<option value="${c.category_id}">${c.category_name}</option>`;
+          fsel.innerHTML += `<option value="${c.category_id}">${c.category_name}</option>`;
+        });
+      } catch(e) { console.error(e); }
+    }
+
+async function loadStats() {
+  try {
+    const now = new Date();
+    const yearStart = now.getFullYear() + '-01-01';
+
+    const [monthData, todayData, yearData] = await Promise.all([
+      api('GET', `/api/expenses?from=${monthStart}&to=${monthEnd}`),
+      api('GET', `/api/expenses?from=${todayStr}&to=${todayStr}`),
+      api('GET', `/api/expenses?from=${yearStart}&to=${todayStr}`)
+    ]);
+
+    const monthList = normalizeList(monthData, ['expenses', 'data']);
+    const todayList = normalizeList(todayData, ['expenses', 'data']);
+    const yearList  = normalizeList(yearData,  ['expenses', 'data']);
+
+    const sum = arr => arr.reduce((s, r) => s + (+r.amount || 0), 0);
+
+    document.getElementById('expStatMonth').textContent = formatMoney(sum(monthList));
+    document.getElementById('expStatToday').textContent = formatMoney(sum(todayList));
+    document.getElementById('expStatYear').textContent  = formatMoney(sum(yearList));
+
+    // Top category from this month's data
+    if (monthList.length) {
+      const map = {};
+      monthList.forEach(r => {
+        const k = r.category_name || 'Uncategorized';
+        map[k] = (map[k] || 0) + (+r.amount || 0);
+      });
+      const top = Object.entries(map).sort((a, b) => b[1] - a[1])[0];
+      document.getElementById('expStatTopCat').textContent = top ? top[0] : '—';
+    }
+
+  } catch(e) {
+    console.error('loadStats error:', e); // never leave catch empty!
+  }
+}
+    async function loadExpenses() {
+      const tbody = document.getElementById('expTableBody');
+      tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
+      const from = document.getElementById('dateFrom').value;
+      const to   = document.getElementById('dateTo').value;
+      const cat  = document.getElementById('catFilter').value;
+
+      const params = new URLSearchParams();
+if (from) params.set('from', from);
+if (to)   params.set('to', to);
+if (cat)  params.set('category', cat);
+const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '');
+
+      try {
+      const raw  = await api('GET', url);
+      dbg('expenses raw', raw);
+      const data = normalizeList(raw, ['expenses', 'data', 'results']);
+      if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No expenses found.</td></tr>';
+          document.getElementById('expTotal').textContent = '';
+          renderCatBreakdown([]);
+          return;
+        }
+        const total = data.reduce((s,r) => s + +r.amount, 0);
+        tbody.innerHTML = data.map(r => `
+          <tr>
+            <td>${formatDate(r.created_at)}</td>
+            <td><span class="badge badge-info">${r.category_name || '—'}</span></td>
+            <td class="ellipsis-cell" title="${r.description||''}">${r.description || '—'}</td>
+            <td class="amount-danger">${formatMoney(r.amount)}</td>
+            <td>
+              <button class="btn btn-outline btn-sm" onclick="editExpense(${r.expense_id})">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteExpense(${r.expense_id})">Del</button>
+            </td>
+          </tr>`).join('');
+        document.getElementById('expTotal').textContent = `Total: ${formatMoney(total)}`;
+        renderCatBreakdown(data);
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    function renderCatBreakdown(data) {
+      const el = document.getElementById('catBreakdown');
+      if (!data.length) { el.innerHTML = '<p class="empty">No data.</p>'; return; }
+      const map = {};
+      data.forEach(r => {
+        const key = r.category_name || 'Uncategorized';
+        map[key] = (map[key] || 0) + +r.amount;
+      });
+      const total = Object.values(map).reduce((a,b) => a+b, 0);
+      const sorted = Object.entries(map).sort((a,b) => b[1]-a[1]);
+      el.innerHTML = sorted.map(([name, amt]) => {
+        const pct = total > 0 ? Math.round(amt/total*100) : 0;
+        return `
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+              <span>${name}</span>
+              <span style="font-weight:600;">${formatMoney(amt)} <span class="text-muted" style="font-weight:400;">(${pct}%)</span></span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:${pct}%;"></div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    let editingExpense = null;
+    async function editExpense(id) {
+      try {
+        const data = await api('GET', `/api/expenses/${id}`);
+        editingExpense = data;
+        document.getElementById('expenseId').value   = data.expense_id;
+        document.getElementById('expCategory').value = data.category_id;
+        document.getElementById('expAmount').value   = data.amount;
+        document.getElementById('expDesc').value     = data.description || '';
+        document.getElementById('expDate').value     = data.created_at ? data.created_at.slice(0,10) : todayStr;
+        document.getElementById('expModalTitle').textContent = 'Edit Expense';
+        document.getElementById('expenseModal').classList.add('open');
+      } catch(e) { showToast('Could not load expense.', 'error'); }
+    }
+
+    async function deleteExpense(id) {
+      if (!confirm('Delete this expense?')) return;
+      try {
+        await api('DELETE', `/api/expenses/${id}`);
+        showToast('Expense deleted.');
+        loadExpenses();
+        loadStats();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    function openExpModal() {
+      editingExpense = null;
+      document.getElementById('expenseId').value   = '';
+      document.getElementById('expCategory').value = '';
+      document.getElementById('expAmount').value   = '';
+      document.getElementById('expDesc').value     = '';
+      document.getElementById('expDate').value     = todayStr;
+      document.getElementById('expModalTitle').textContent = 'Add Expense';
+      document.getElementById('expenseModal').classList.add('open');
+    }
+    function closeExpModal() {
+      document.getElementById('expenseModal').classList.remove('open');
+    }
+
+    async function saveExpense() {
+      const id       = document.getElementById('expenseId').value;
+      const catId    = document.getElementById('expCategory').value;
+      const amount   = parseFloat(document.getElementById('expAmount').value);
+      const desc     = document.getElementById('expDesc').value.trim();
+      const date     = document.getElementById('expDate').value;
+
+      if (!catId)       { showToast('Select a category.', 'error'); return; }
+      if (!amount || amount <= 0) { showToast('Enter a valid amount.', 'error'); return; }
+
+      const body = { category_id: parseInt(catId), amount, description: desc, created_at: date };
+      try {
+        if (id) {
+          await api('PUT', `/api/expenses/${id}`, body);
+          showToast('Expense updated.');
+        } else {
+          await api('POST', '/api/expenses', body);
+          showToast('Expense added.');
+        }
+        closeExpModal();
+        loadExpenses();
+        loadStats();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // Category management
+    function openCatModal() {
+      renderCatList();
+      document.getElementById('catModal').classList.add('open');
+    }
+    function closeCatModal() {
+      document.getElementById('catModal').classList.remove('open');
+      loadCategories();
+    }
+    function renderCatList() {
+      const el = document.getElementById('catList');
+      if (!categories.length) { el.innerHTML = '<p class="empty">No categories yet.</p>'; return; }
+      el.innerHTML = `<div class="list-panel">
+        ${categories.map((c,i) => `
+          <div class="list-row">
+            <span>${c.category_name}</span>
+            <button class="btn btn-danger btn-sm" onclick="deleteCategory(${c.category_id},'${c.category_name}')">Remove</button>
+          </div>`).join('')}
+      </div>`;
+    }
+    async function addCategory() {
+      const name = document.getElementById('newCatName').value.trim();
+      if (!name) return;
+      try {
+        await api('POST', '/api/expenses/categories', { category_name: name });
+        document.getElementById('newCatName').value = '';
+        const _catRaw = await api('GET', '/api/expenses/categories');
+        categories = normalizeList(_catRaw, ['categories', 'data']);
+        renderCatList();
+        showToast('Category added.');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+    async function deleteCategory(id, name) {
+      if (!confirm(`Remove category "${name}"?`)) return;
+      try {
+        await api('DELETE', `/api/expenses/categories/${id}`);
+        const _catRaw = await api('GET', '/api/expenses/categories');
+        categories = normalizeList(_catRaw, ['categories', 'data']);
+        renderCatList();
+        showToast('Category removed.');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <title>Staff — School Management</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <!-- Staff Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">Add Staff Member</h2>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <input type="hidden" id="staffId"/>
+        <div class="form-row">
+          <div class="form-group" style="grid-column:1/-1;">
+            <label>Full Name *</label>
+            <input type="text" id="staffName" required/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Staff Code *</label>
+            <input type="text" id="staffCode" placeholder="e.g. TCH-001"/>
+          </div>
+          <div class="form-group">
+            <label>CNIC *</label>
+            <input type="text" id="cnic" placeholder="xxxxx-xxxxxxx-x"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" id="phone" placeholder="03xxxxxxxxx"/>
+          </div>
+          <div class="form-group">
+            <label>Salary (Rs.)</label>
+            <input type="number" id="salary" placeholder="0.00" step="0.01"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Designation</label>
+          <select id="designationId">
+            <option value="">Select designation</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveStaff()">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Designation Modal -->
+  <div class="modal-overlay" id="desigModalOverlay">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Manage Designations</h2>
+        <button class="modal-close" onclick="closeDesigModal()">×</button>
+      </div>
+      <div class="form-group">
+        <label>Add New Designation</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="newDesigTitle" placeholder="e.g. Teacher" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px;"/>
+          <button class="btn btn-primary" onclick="addDesignation()">Add</button>
+        </div>
+      </div>
+      <div id="desigList" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Staff</h1>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline" onclick="openDesigModal()">Designations</button>
+        <button class="btn btn-primary" onclick="openModal()">+ Add Staff</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="filters">
+        <input class="search-box" type="text" id="searchInput" placeholder="Search name, code, CNIC…" oninput="filterTable()"/>
+        <select id="filterDesig" onchange="filterTable()">
+          <option value="">All Designations</option>
+        </select>
+        <span id="countLabel" style="font-size:12px;color:#888;margin-left:auto;"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th><th>Name</th><th>Designation</th><th>CNIC</th>
+              <th>Phone</th><th>Salary</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="staffTableBody">
+            <tr><td colspan="7" class="loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    checkAuth();
+    renderNav('staff');
+
+    let allStaff = [];
+    let designations = [];
+
+    async function loadAll() {
+      await loadDesignations();
+      await loadStaff();
+    }
+
+    async function loadDesignations() {
+      try {
+        designations = await api('GET', '/api/staff/designations');
+        const sel = document.getElementById('designationId');
+        const filterSel = document.getElementById('filterDesig');
+        sel.innerHTML = '<option value="">Select designation</option>';
+        filterSel.innerHTML = '<option value="">All Designations</option>';
+        designations.forEach(d => {
+          sel.innerHTML += `<option value="${d.id}">${d.title}</option>`;
+          filterSel.innerHTML += `<option value="${d.id}">${d.title}</option>`;
+        });
+      } catch(e) { console.error(e); }
+    }
+
+    async function loadStaff() {
+      const tbody = document.getElementById('staffTableBody');
+      try {
+        const res = await api('GET', '/api/staff');
+        allStaff  = Array.isArray(res) ? res : (res.staff || res.data || []);
+        renderTable(allStaff);
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    function renderTable(list) {
+      const tbody = document.getElementById('staffTableBody');
+      document.getElementById('countLabel').textContent = `${list.length} staff member${list.length !== 1 ? 's' : ''}`;
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No staff found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(s => `
+        <tr>
+          <td>${s.staff_code}</td>
+          <td><strong>${s.name}</strong></td>
+          <td>${s.designation_title || '—'}</td>
+          <td>${s.cnic}</td>
+          <td>${s.phone_no || '—'}</td>
+          <td>${formatMoney(s.salary)}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" onclick="editStaff(${s.staff_id})">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteStaff(${s.staff_id})">Delete</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    function filterTable() {
+      const q    = document.getElementById('searchInput').value.toLowerCase();
+      const desig = document.getElementById('filterDesig').value;
+      const list = allStaff.filter(s => {
+        const txt = `${s.name} ${s.staff_code} ${s.cnic}`.toLowerCase();
+        return (!q || txt.includes(q)) && (!desig || String(s.designation_id) === desig);
+      });
+      renderTable(list);
+    }
+
+    function openModal(staff = null) {
+      document.getElementById('staffId').value       = staff ? staff.staff_id    : '';
+      document.getElementById('staffName').value     = staff ? staff.name        : '';
+      document.getElementById('staffCode').value     = staff ? staff.staff_code  : '';
+      document.getElementById('cnic').value          = staff ? staff.cnic        : '';
+      document.getElementById('phone').value         = staff ? (staff.phone_no || '') : '';
+      document.getElementById('salary').value        = staff ? (staff.salary    || '') : '';
+      document.getElementById('designationId').value = staff ? (staff.designation_id || '') : '';
+      document.getElementById('modalTitle').textContent = staff ? 'Edit Staff Member' : 'Add Staff Member';
+      document.getElementById('modalOverlay').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('open');
+    }
+
+    function editStaff(id) {
+      const s = allStaff.find(x => x.staff_id === id);
+      if (s) openModal(s);
+    }
+
+    async function saveStaff() {
+      const id   = document.getElementById('staffId').value;
+      const body = {
+        name:           document.getElementById('staffName').value.trim(),
+        staff_code:     document.getElementById('staffCode').value.trim(),
+        cnic:           document.getElementById('cnic').value.trim(),
+        phone_no:       document.getElementById('phone').value.trim(),
+        salary:         parseFloat(document.getElementById('salary').value) || 0,
+        designation_id: parseInt(document.getElementById('designationId').value) || null,
+      };
+      if (!body.name || !body.staff_code || !body.cnic) {
+        showToast('Name, code and CNIC are required.', 'error'); return;
+      }
+      try {
+        if (id) {
+          await api('PUT', `/api/staff/${id}`, body);
+          showToast('Staff updated.');
+        } else {
+          await api('POST', '/api/staff', body);
+          showToast('Staff added.');
+        }
+        closeModal();
+        loadStaff();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function deleteStaff(id) {
+  const s = allStaff.find(x => x.staff_id === id);
+  if (!confirm(`Delete "${s ? s.name : 'this staff member'}"? This cannot be undone.`)) return;
+      try {
+        await api('DELETE', `/api/staff/${id}`);
+        showToast('Staff deleted.');
+        loadStaff();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // Designations management
+    function openDesigModal() {
+      renderDesigList();
+      document.getElementById('desigModalOverlay').classList.add('open');
+    }
+    function closeDesigModal() {
+      document.getElementById('desigModalOverlay').classList.remove('open');
+      loadDesignations();
+    }
+    function renderDesigList() {
+      const el = document.getElementById('desigList');
+      if (!designations.length) { el.innerHTML = '<p class="empty">No designations yet.</p>'; return; }
+      el.innerHTML = `<div style="border:1px solid #eee;border-radius:4px;">
+        ${designations.map((d,i) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;${i?'border-top:1px solid #eee':''}">
+            <span>${d.title}</span>
+            <button class="btn btn-danger btn-sm" onclick="deleteDesig(${d.id},'${d.title}')">Remove</button>
+          </div>`).join('')}
+      </div>`;
+    }
+    async function addDesignation() {
+      const title = document.getElementById('newDesigTitle').value.trim();
+      if (!title) return;
+      try {
+        await api('POST', '/api/staff/designations', { title });
+        document.getElementById('newDesigTitle').value = '';
+        const _dRaw = await api('GET', '/api/staff/designations');
+        designations = normalizeList(_dRaw, ['designations', 'data']);
+        renderDesigList();
+        showToast('Designation added.');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+    async function deleteDesig(id, title) {
+      if (!confirm(`Remove designation "${title}"?`)) return;
+      try {
+        await api('DELETE', `/api/staff/designations/${id}`);
+        const _dRaw = await api('GET', '/api/staff/designations');
+        designations = normalizeList(_dRaw, ['designations', 'data']);
+        renderDesigList();
+        showToast('Designation removed.');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>
