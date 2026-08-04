@@ -140,6 +140,7 @@
   <script>
     checkAuth();
     renderNav('students');
+    bindPanelKeyboardNavigation(document);
 
     let allStudents = [];
     const todayStr = new Date().toISOString().slice(0,10);

@@ -101,6 +101,37 @@ function normalizeList(res, hints = []) {
   return [];
 }
 
+function bindPanelKeyboardNavigation(root = document) {
+  const fields = Array.from(root.querySelectorAll('input, select, textarea'))
+    .filter(el => !el.disabled && el.type !== 'hidden' && el.tabIndex !== -1);
+  if (!fields.length) return;
+
+  const isNavField = el => el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio';
+
+  fields.forEach((field, index) => {
+    field.addEventListener('keydown', e => {
+      const key = e.key;
+      if (key === 'Enter' && field.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        const next = fields[index + 1];
+        if (next) next.focus();
+        return;
+      }
+      if (key === 'ArrowDown' && isNavField(field)) {
+        e.preventDefault();
+        const next = fields[index + 1];
+        if (next) next.focus();
+        return;
+      }
+      if (key === 'ArrowUp' && isNavField(field)) {
+        e.preventDefault();
+        const prev = fields[index - 1];
+        if (prev) prev.focus();
+      }
+    });
+  });
+}
+
 function dbg(label, val) {
   console.log(`[DBG] ${label}:`, JSON.stringify(val)?.slice(0, 300));
 }
