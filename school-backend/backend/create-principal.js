@@ -5,8 +5,7 @@
  * editing, and deleting fee payments — the same fee rights admin has.
  * It does NOT get admin's other rights (staff, students, expense
  * categories, or managing other user accounts). This is enforced in
- * routes/fees.js via authorize('admin', 'accountant', 'principal') /
- * authorize('admin', 'principal').
+ * routes/fees.js via authorize('admin', 'principal') / authorize('admin', 'principal').
  *
  * Usage:
  *   node create-principal.js                        -> username: principal, password: Principal@123

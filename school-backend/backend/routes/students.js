@@ -63,7 +63,7 @@ router.get('/:id', async (req, res, next) => {
 /* ─────────────────────────────────────────
    POST /api/students
 ───────────────────────────────────────── */
-router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
+router.post('/', authorize('admin'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, address, admission_date } = req.body;
@@ -94,7 +94,7 @@ router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
 /* ─────────────────────────────────────────
    PUT /api/students/:id
 ───────────────────────────────────────── */
-router.put('/:id', authorize('admin', 'accountant'), async (req, res, next) => {
+router.put('/:id', authorize('admin'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, address, admission_date } = req.body;

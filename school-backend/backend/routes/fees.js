@@ -17,7 +17,7 @@ function normalizeMonthInput(value) {
   return raw;
 }
 
-router.post('/', authorize('admin', 'accountant', 'principal'), async (req, res, next) => {
+router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { student_id, academic_month, amount_due, amount_paid } = req.body;
     if (!student_id || !academic_month || amount_due == null) {
@@ -185,10 +185,9 @@ router.get('/daily', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Editing an existing record is principal-only — same rule as delete
-// (admin can create new payments via POST, but not retroactively edit
-// amounts on an already-recorded one).
-router.put('/:payment_id', authorize('principal'), async (req, res, next) => {
+// Editing an existing record is allowed for admin and principal.
+// In this system there are only two roles: admin and principal.
+router.put('/:payment_id', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { amount_paid, amount_due } = req.body;
     if (amount_paid == null && amount_due == null) {

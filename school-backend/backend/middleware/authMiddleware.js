@@ -27,7 +27,7 @@ const authenticate = (req, res, next) => {
 
 /**
  * Role-based access: pass one or more allowed roles.
- * Usage: authorize('admin')  |  authorize('admin', 'accountant')
+ * Usage: authorize('admin')  |  authorize('admin', 'principal')  |  authorize('principal')
  */
 const authorize = (...roles) => {
   return (req, res, next) => {

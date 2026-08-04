@@ -102,7 +102,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/expenses
-router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
+router.post('/', authorize('admin'), async (req, res, next) => {
   try {
     const { category_id, amount, description, created_at } = req.body;
 
@@ -120,7 +120,7 @@ router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
 });
 
 // PUT /api/expenses/:id
-router.put('/:id', authorize('admin', 'accountant'), async (req, res, next) => {
+router.put('/:id', authorize('admin'), async (req, res, next) => {
   try {
     const { category_id, amount, description, created_at } = req.body;
     if (!amount) return res.status(400).json({ error: 'amount is required.' });

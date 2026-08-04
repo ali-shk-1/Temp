@@ -51,8 +51,8 @@ Authorization: Bearer <token>
 | GET | `/api/students` | ✅ | any | List all (filterable) |
 | GET | `/api/students/:id` | ✅ | any | Get one student |
 | GET | `/api/students/meta/classes` | ✅ | any | Distinct class/section list |
-| POST | `/api/students` | ✅ | admin, accountant | Add student |
-| PUT | `/api/students/:id` | ✅ | admin, accountant | Update student |
+| POST | `/api/students` | ✅ | admin | Add student |
+| PUT | `/api/students/:id` | ✅ | admin | Update student |
 | DELETE | `/api/students/:id` | ✅ | admin | Delete student |
 
 ### GET /api/students — Query Params
@@ -110,12 +110,12 @@ Authorization: Bearer <token>
 
 | Method | Endpoint | Auth | Role | Description |
 |--------|----------|------|------|-------------|
-| POST | `/api/fees` | ✅ | admin, accountant | Record payment |
+| POST | `/api/fees` | ✅ | admin, principal | Record payment |
 | GET | `/api/fees/student/:student_id` | ✅ | any | Student fee history |
 | GET | `/api/fees/summary/monthly` | ✅ | any | Monthly totals |
 | GET | `/api/fees/summary/yearly` | ✅ | any | Year month-by-month |
 | GET | `/api/fees/defaulters` | ✅ | any | Students with balance |
-| PUT | `/api/fees/:payment_id` | ✅ | admin, accountant | Update payment |
+| PUT | `/api/fees/:payment_id` | ✅ | admin, principal | Update payment |
 | DELETE | `/api/fees/:payment_id` | ✅ | admin | Delete payment |
 
 ### POST /api/fees — Body
@@ -141,8 +141,8 @@ Authorization: Bearer <token>
 |--------|----------|------|------|-------------|
 | GET | `/api/expenses` | ✅ | any | List expenses (filterable) |
 | GET | `/api/expenses/:id` | ✅ | any | Get one expense |
-| POST | `/api/expenses` | ✅ | admin, accountant | Add expense |
-| PUT | `/api/expenses/:id` | ✅ | admin, accountant | Update expense |
+| POST | `/api/expenses` | ✅ | admin | Add expense |
+| PUT | `/api/expenses/:id` | ✅ | admin | Update expense |
 | DELETE | `/api/expenses/:id` | ✅ | admin | Delete expense |
 | GET | `/api/expenses/categories` | ✅ | any | List categories |
 | POST | `/api/expenses/categories` | ✅ | admin | Add category |
