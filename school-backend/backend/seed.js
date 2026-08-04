@@ -22,6 +22,7 @@ async function seed() {
     await client.query(`
       INSERT INTO roles (role_name) VALUES
         ('admin'),
+        ('principal'),
         ('accountant'),
         ('teacher')
       ON CONFLICT (role_name) DO NOTHING

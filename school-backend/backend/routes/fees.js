@@ -17,7 +17,7 @@ function normalizeMonthInput(value) {
   return raw;
 }
 
-router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
+router.post('/', authorize('admin', 'accountant', 'principal'), async (req, res, next) => {
   try {
     const { student_id, academic_month, amount_due, amount_paid } = req.body;
     if (!student_id || !academic_month || amount_due == null) {
@@ -35,7 +35,21 @@ router.post('/', authorize('admin', 'accountant'), async (req, res, next) => {
        RETURNING *`,
       [student_id, academic_month, amount_due, amount_paid || 0]
     );
-    res.status(201).json({ message: 'Fee payment recorded.', payment: rows[0] });
+
+    // Re-fetch joined with student info so the client has everything it
+    // needs to render/print a receipt without a second round-trip.
+    const receipt = await pool.query(
+      `SELECT fp.*,
+              (fp.amount_due - fp.amount_paid) AS balance,
+              s.roll_no, s.first_name, s.last_name, s.class, s.section,
+              s.father_name, s.contact_1, s.contact_2, s.address
+       FROM fee_payments fp
+       JOIN students s ON s.student_id = fp.student_id
+       WHERE fp.payment_id = $1`,
+      [rows[0].payment_id]
+    );
+
+    res.status(201).json({ message: 'Fee payment recorded.', payment: receipt.rows[0] });
   } catch (err) { next(err); }
 });
 
@@ -171,7 +185,7 @@ router.get('/daily', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:payment_id', authorize('admin', 'accountant'), async (req, res, next) => {
+router.put('/:payment_id', authorize('admin', 'accountant', 'principal'), async (req, res, next) => {
   try {
     const { amount_paid } = req.body;
     if (amount_paid == null) return res.status(400).json({ error: 'amount_paid is required.' });
@@ -186,7 +200,7 @@ router.put('/:payment_id', authorize('admin', 'accountant'), async (req, res, ne
   } catch (err) { next(err); }
 });
 
-router.delete('/:payment_id', authorize('admin'), async (req, res, next) => {
+router.delete('/:payment_id', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       'DELETE FROM fee_payments WHERE payment_id = $1 RETURNING payment_id',

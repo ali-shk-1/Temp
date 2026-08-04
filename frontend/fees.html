@@ -65,6 +65,27 @@
     </div>
   </div>
 
+  <!-- Payment Receipt Modal (shown right after a payment is recorded) -->
+  <div class="modal-overlay" id="receiptModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Payment Recorded</h2>
+        <button class="modal-close" onclick="closeReceiptModal()">×</button>
+      </div>
+      <div style="padding:4px 2px 14px;font-size:13px;color:#444;">
+        <div style="text-align:center;margin-bottom:10px;">
+          <div style="font-size:32px;">✅</div>
+          <div>Payment saved successfully.</div>
+        </div>
+        <div id="receiptSummary" style="background:#f7f7fb;border:1px solid #e2e2ea;border-radius:6px;padding:10px 12px;line-height:1.6;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeReceiptModal()">Close</button>
+        <button class="btn btn-success" onclick="printReceipt()">🖨 Print Receipt</button>
+      </div>
+    </div>
+  </div>
+
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">Fee Management</h1>
@@ -133,8 +154,8 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Student</th><th>Class</th><th>Section</th><th>Month</th><th>Amount Paid</th><th>Time</th></tr></thead>
-            <tbody id="dailyBody"><tr><td colspan="6" class="loading">Select date</td></tr></tbody>
+            <thead><tr><th>Student</th><th>Class</th><th>Section</th><th>Month</th><th>Amount Paid</th><th>Time</th><th>Receipt</th></tr></thead>
+            <tbody id="dailyBody"><tr><td colspan="7" class="loading">Select date</td></tr></tbody>
           </table>
         </div>
         <div id="dailyTotal" style="text-align:right;font-size:13px;font-weight:600;padding:10px 0 0;color:#2d7a4f;"></div>
@@ -172,8 +193,8 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Month</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th></tr></thead>
-            <tbody id="historyBody"><tr><td colspan="6" class="empty">Select a student above.</td></tr></tbody>
+            <thead><tr><th>Month</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th><th>Receipt</th></tr></thead>
+            <tbody id="historyBody"><tr><td colspan="7" class="empty">Select a student above.</td></tr></tbody>
           </table>
         </div>
         <div id="historyTotal" style="padding:8px 0 0;font-size:13px;color:#555;"></div>
@@ -197,8 +218,26 @@
     checkAuth();
     renderNav('fees');
 
+    // ---- School branding for printed receipts ----
+    // Drop your school logo file at frontend/school-logo.png (any size,
+    // square works best). If the file isn't there the receipt just
+    // prints without a logo — nothing breaks.
+    const SCHOOL_NAME = 'AL Siddeeq Model High School Rawalpindi';
+    const SCHOOL_LOGO_URL = new URL('school-logo.png', window.location.href).href;
+
     let allStudents = [];
     let monthlyData = [];
+    let currentMonthlyList = [];
+    let currentDailyList = [];
+    let currentHistoryList = [];
+    let currentHistoryStudentId = null;
+    let currentReceiptData = null; // set right before printing/showing a receipt
+
+    // Delete-payment is restricted to principal only (same as the backend's
+    // authorize('principal') on DELETE /api/fees/:payment_id). Admin no
+    // longer has this right, per requirement.
+    const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
+    const canDeleteFees = currentUser.role === 'principal';
 
     // Set default month/date
     const todayStr = new Date().toISOString().slice(0,10);
@@ -293,7 +332,7 @@
       if (!list.length) {
         tbody.innerHTML = '<tr><td colspan="10" class="empty">No records found.</td></tr>'; return;
       }
-      tbody.innerHTML = list.map(r => {
+      tbody.innerHTML = list.map((r, i) => {
         const due  = +r.amount_due  || 0;
         const paid = +r.amount_paid || 0;
         const bal  = due - paid;
@@ -310,36 +349,43 @@
           <td>${bal > 0 ? formatMoney(bal) : '—'}</td>
           <td><span class="badge ${stCls}">${stLabel}</span></td>
           <td>${r.payment_date ? formatDate(r.payment_date) : '—'}</td>
-          <td><button class="btn btn-outline btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${due},${paid})">Pay</button></td>
+          <td style="white-space:nowrap;">
+            <button class="btn btn-outline btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${due},${paid})">Pay</button>
+            <button class="btn btn-outline btn-sm" title="Print receipt" onclick="printMonthlyReceipt(${i})">🖨</button>
+            ${canDeleteFees ? `<button class="btn btn-outline btn-sm" title="Delete record" onclick="deleteFeeRecord(${r.payment_id})">🗑</button>` : ''}
+          </td>
         </tr>`;
       }).join('');
+      currentMonthlyList = list;
     }
 
     async function loadDailyRecords() {
       const tbody = document.getElementById('dailyBody');
       const totalEl = document.getElementById('dailyTotal');
-      tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
       const date = document.getElementById('dailyDateFilter').value;
       try {
         const raw  = await api('GET', `/api/fees/daily?date=${date}`);
         const data = normalizeList(raw, ['payments', 'data']);
         if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No payments on this date.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No payments on this date.</td></tr>';
           totalEl.textContent = '';
           return;
         }
-        tbody.innerHTML = data.map(r => `
+        tbody.innerHTML = data.map((r, i) => `
           <tr>
             <td>${r.first_name} ${r.last_name}</td>
             <td>${r.class}</td><td>${r.section}</td>
             <td>${r.academic_month ? new Date(r.academic_month).toLocaleDateString('en-GB',{month:'long',year:'numeric'}) : '—'}</td>
             <td class="fee-paid">${formatMoney(r.amount_paid)}</td>
             <td style="font-size:12px;color:#888;">${r.payment_date ? new Date(r.payment_date).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+            <td><button class="btn btn-outline btn-sm" title="Print receipt" onclick="printDailyReceipt(${i})">🖨</button></td>
           </tr>`).join('');
+        currentDailyList = data;
         const total = data.reduce((s,r) => s + +r.amount_paid, 0);
         totalEl.textContent = `Total Collected: ${formatMoney(total)}`;
       } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load.</td></tr>';
       }
     }
 
@@ -376,19 +422,20 @@
       const id = document.getElementById('historyStudentSel').value;
       const tbody = document.getElementById('historyBody');
       const totalEl = document.getElementById('historyTotal');
-      if (!id) { tbody.innerHTML = '<tr><td colspan="6" class="empty">Select a student above.</td></tr>'; return; }
-      tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+      if (!id) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Select a student above.</td></tr>'; return; }
+      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
       try {
         const res  = await api('GET', `/api/fees/student/${id}`);
         dbg('student history raw', res);
         const data = normalizeList(res, ['payments', 'fees', 'data']);
         if (!data || !data.length) {
-          tbody.innerHTML = '<tr><td colspan="6" class="empty">No payment history.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="empty">No payment history.</td></tr>';
           totalEl.textContent = '';
           return;
         }
+        currentHistoryStudentId = id;
         let totalDue = 0, totalPaid = 0;
-        tbody.innerHTML = data.map(r => {
+        tbody.innerHTML = data.map((r, i) => {
           const due  = +r.amount_due  || 0;
           const paid = +r.amount_paid || 0;
           const bal  = due - paid;
@@ -404,11 +451,13 @@
             <td>${bal > 0 ? formatMoney(bal) : '—'}</td>
             <td><span class="badge ${stCls}">${stLabel}</span></td>
             <td>${r.payment_date ? formatDate(r.payment_date) : '—'}</td>
+            <td><button class="btn btn-outline btn-sm" title="Print receipt" onclick="printHistoryReceipt(${i})">🖨</button></td>
           </tr>`;
         }).join('');
+        currentHistoryList = data;
         totalEl.innerHTML = `Total Due: <strong>${formatMoney(totalDue)}</strong> &nbsp;|&nbsp; Total Paid: <strong class="fee-paid">${formatMoney(totalPaid)}</strong> &nbsp;|&nbsp; Outstanding: <strong class="fee-unpaid">${formatMoney(totalDue - totalPaid)}</strong>`;
       } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load.</td></tr>';
       }
     }
 
@@ -510,6 +559,20 @@
       document.getElementById('paymentModal').classList.remove('open');
     }
 
+    // Admin/principal only — deletes a fee payment record. The backend
+    // also enforces this via authorize('admin','principal'), so this is
+    // just keeping the button hidden from roles that would get a 403 anyway.
+    async function deleteFeeRecord(paymentId) {
+      if (!canDeleteFees) return;
+      if (!confirm('Delete this fee payment record? This cannot be undone.')) return;
+      try {
+        await api('DELETE', `/api/fees/${paymentId}`);
+        showToast('Payment record deleted.', 'success');
+        loadMonthlyRecords();
+        loadStats();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
     async function savePayment() {
       const studentId = document.getElementById('payStudentSel').value;
       const month     = document.getElementById('payMonth').value;
@@ -519,7 +582,7 @@
       if (!month)     { showToast('Select a month.', 'error');   return; }
       if (paid <= 0)  { showToast('Amount paid must be > 0.', 'error'); return; }
       try {
-        await api('POST', '/api/fees', {
+        const res = await api('POST', '/api/fees', {
           student_id:     parseInt(studentId),
           academic_month: month + '-01',
           amount_due:     due,
@@ -529,7 +592,174 @@
         closePayModal();
         loadMonthlyRecords();
         loadStats();
+
+        // Show a receipt confirmation with a Print option right away.
+        const p = res && res.payment ? res.payment : null;
+        if (p) openReceiptModal(p);
       } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    // ---------------- Receipt printing ----------------
+
+    // Normalizes a payment/student record (from any of the tables, or the
+    // POST /api/fees response) into one consistent shape for the receipt.
+    function normalizeReceiptData(r) {
+      // Always cross-check against the local students cache and fill in
+      // ANY missing field (name, roll, class, section, father, contact).
+      // This guards against an older backend response (e.g. before the
+      // POST /api/fees route was updated to return joined student data)
+      // still leaving the receipt fully populated.
+      const s = r.student_id ? allStudents.find(st => st.student_id === r.student_id) : null;
+      const first_name = r.first_name || s?.first_name || '';
+      const last_name  = r.last_name  || s?.last_name  || '';
+      const roll_no    = r.roll_no    ?? s?.roll_no;
+      const cls        = r.class      || s?.class;
+      const section    = r.section    || s?.section;
+      const father_name = r.father_name || s?.father_name;
+      const contact_1   = r.contact_1   || s?.contact_1;
+
+      const due  = +r.amount_due  || 0;
+      const paid = +r.amount_paid || 0;
+      return {
+        receipt_no:     r.payment_id || '—',
+        roll_no:        roll_no ?? '—',
+        student_name:   `${first_name} ${last_name}`.trim() || '—',
+        class_section:  `${cls || ''}${section ? '-' + section : ''}` || '—',
+        father_name:    father_name || '—',
+        contact_1:      contact_1 || '—',
+        academic_month: r.academic_month
+          ? new Date(r.academic_month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+          : '—',
+        amount_due:  due,
+        amount_paid: paid,
+        balance:     due - paid,
+        payment_date: r.payment_date ? new Date(r.payment_date) : new Date()
+      };
+    }
+
+    function openReceiptModal(paymentRow) {
+      currentReceiptData = normalizeReceiptData(paymentRow);
+      const d = currentReceiptData;
+      document.getElementById('receiptSummary').innerHTML = `
+        <div><strong>${d.student_name}</strong> &nbsp; (Roll ${d.roll_no}, Class ${d.class_section})</div>
+        <div>Month: <strong>${d.academic_month}</strong></div>
+        <div>Amount Paid: <strong class="fee-paid">${formatMoney(d.amount_paid)}</strong>
+          ${d.balance > 0 ? ` &nbsp;|&nbsp; Balance: <strong class="fee-unpaid">${formatMoney(d.balance)}</strong>` : ''}</div>
+      `;
+      document.getElementById('receiptModal').classList.add('open');
+    }
+
+    function closeReceiptModal() {
+      document.getElementById('receiptModal').classList.remove('open');
+    }
+
+    // Print buttons on the historical tables: look up the row from the
+    // stored list, normalize it, then print directly (no confirmation
+    // modal needed since it's not a fresh payment).
+    function printMonthlyReceipt(i) {
+      currentReceiptData = normalizeReceiptData(currentMonthlyList[i]);
+      printReceipt();
+    }
+    function printDailyReceipt(i) {
+      currentReceiptData = normalizeReceiptData(currentDailyList[i]);
+      printReceipt();
+    }
+    function printHistoryReceipt(i) {
+      const row = { ...currentHistoryList[i], student_id: currentHistoryStudentId };
+      const s = allStudents.find(st => st.student_id === currentHistoryStudentId);
+      if (s) Object.assign(row, {
+        roll_no: s.roll_no, first_name: s.first_name, last_name: s.last_name,
+        class: s.class, section: s.section
+      });
+      currentReceiptData = normalizeReceiptData(row);
+      printReceipt();
+    }
+
+    // Opens a clean, printable receipt in a new tab with the school
+    // name/logo, student details and fee details, then triggers print.
+    function printReceipt() {
+      const d = currentReceiptData;
+      if (!d) return;
+
+      const win = window.open('', '_blank');
+      if (!win) { showToast('Please allow pop-ups to print the receipt.', 'error'); return; }
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>Fee Receipt — ${d.student_name}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; padding: 30px; }
+  .receipt { max-width: 640px; margin: 0 auto; border: 1px solid #ccc; border-radius: 8px; padding: 24px 28px; }
+  .header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1a1a2e; padding-bottom: 14px; margin-bottom: 18px; }
+  .header img { width: 64px; height: 64px; object-fit: contain; }
+  .header .school-name { font-size: 20px; font-weight: 700; }
+  .header .sub { font-size: 12px; color: #666; margin-top: 2px; }
+  .title { text-align: center; font-size: 15px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #444; margin-bottom: 18px; }
+  table.info { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 13px; }
+  table.info td { padding: 5px 4px; vertical-align: top; }
+  table.info td.label { color: #666; width: 130px; }
+  table.fee { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.fee th, table.fee td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
+  table.fee th { background: #f0f0f0; color: #555; }
+  .paid { color: #2d7a4f; font-weight: 700; }
+  .due  { color: #b3261e; font-weight: 700; }
+  .footer { display: flex; justify-content: space-between; margin-top: 40px; font-size: 12px; color: #666; }
+  .footer .sign { border-top: 1px solid #999; width: 160px; text-align: center; padding-top: 4px; }
+  .meta { text-align: right; font-size: 11px; color: #888; margin-top: -6px; margin-bottom: 14px; }
+  @media print {
+    body { padding: 0; }
+    .receipt { border: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="receipt">
+    <div class="header">
+      <img src="${SCHOOL_LOGO_URL}" onerror="this.style.display='none'" alt="Logo"/>
+      <div>
+        <div class="school-name">${SCHOOL_NAME}</div>
+        <div class="sub">Fee Payment Receipt</div>
+      </div>
+    </div>
+
+    <div class="title">Fee Receipt</div>
+    <div class="meta">Receipt No: ${d.receipt_no} &nbsp;|&nbsp; Date: ${d.payment_date.toLocaleDateString('en-GB')}</div>
+
+    <table class="info">
+      <tr><td class="label">Student Name</td><td>${d.student_name}</td>
+          <td class="label">Roll No.</td><td>${d.roll_no}</td></tr>
+      <tr><td class="label">Class / Section</td><td>${d.class_section}</td>
+          <td class="label">Father's Name</td><td>${d.father_name}</td></tr>
+      <tr><td class="label">Contact</td><td>${d.contact_1}</td>
+          <td class="label">Fee Month</td><td>${d.academic_month}</td></tr>
+    </table>
+
+    <table class="fee">
+      <thead><tr><th>Description</th><th>Amount (Rs.)</th></tr></thead>
+      <tbody>
+        <tr><td>Amount Due</td><td>${d.amount_due.toLocaleString('en-PK')}</td></tr>
+        <tr><td>Amount Paid</td><td class="paid">${d.amount_paid.toLocaleString('en-PK')}</td></tr>
+        <tr><td>Balance</td><td class="${d.balance > 0 ? 'due' : ''}">${d.balance.toLocaleString('en-PK')}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="footer">
+      <div class="sign">Received By</div>
+      <div class="sign">Parent / Guardian Signature</div>
+    </div>
+  </div>
+  <script>
+    window.onload = function () { window.print(); };
+  <\/script>
+</body>
+</html>`;
+
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
     }
 
     init();
