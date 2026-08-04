@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { sendMail } = require('../utils/mailer');
 
 router.use(authenticate);
 
@@ -42,14 +43,52 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
       `SELECT fp.*,
               (fp.amount_due - fp.amount_paid) AS balance,
               s.roll_no, s.first_name, s.last_name, s.class, s.section,
-              s.father_name, s.contact_1, s.contact_2, s.address
+              s.father_name, s.contact_1, s.contact_2, s.address, s.email
        FROM fee_payments fp
        JOIN students s ON s.student_id = fp.student_id
        WHERE fp.payment_id = $1`,
       [rows[0].payment_id]
     );
 
-    res.status(201).json({ message: 'Fee payment recorded.', payment: receipt.rows[0] });
+    const payment = receipt.rows[0];
+    if (payment && payment.email && Number(payment.amount_paid) > 0) {
+      const formattedMonth = new Date(payment.academic_month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      const paymentDate = payment.payment_date
+        ? new Date(payment.payment_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+        : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      const formatCurrency = value => new Intl.NumberFormat('en-PK', {
+        style: 'currency', currency: 'PKR', minimumFractionDigits: 0,
+      }).format(Number(value || 0));
+
+      const subject = `Fee Payment Receipt — ${payment.first_name} ${payment.last_name}`;
+      const html = `
+        <div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5;">
+          <h2 style="color:#2b6cb0;">Fee Payment Receipt</h2>
+          <p>Dear ${payment.first_name} ${payment.last_name},</p>
+          <p>Thank you for your fee payment. Below are the details for the payment recorded for <strong>${formattedMonth}</strong>:</p>
+          <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+            <tr><td style="padding:8px;border:1px solid #ddd;">Student Name</td><td style="padding:8px;border:1px solid #ddd;">${payment.first_name} ${payment.last_name}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Roll No.</td><td style="padding:8px;border:1px solid #ddd;">${payment.roll_no}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Class / Section</td><td style="padding:8px;border:1px solid #ddd;">${payment.class} / ${payment.section}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Payment Date</td><td style="padding:8px;border:1px solid #ddd;">${paymentDate}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Amount Due</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_due)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Amount Paid</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_paid)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Balance</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.balance)}</td></tr>
+          </table>
+          <p style="margin-top:16px;">If you have any questions or need further assistance, please contact the school office.</p>
+          <p style="margin-top:8px;">Sincerely,<br/>School Administration</p>
+        </div>`;
+      const text = `Fee Payment Receipt\n\nStudent: ${payment.first_name} ${payment.last_name}\nRoll No: ${payment.roll_no}\nClass/Section: ${payment.class} / ${payment.section}\nPayment Date: ${paymentDate}\nAmount Due: ${formatCurrency(payment.amount_due)}\nAmount Paid: ${formatCurrency(payment.amount_paid)}\nBalance: ${formatCurrency(payment.balance)}\n\nThank you for your payment.`;
+
+      sendMail({
+        to: payment.email,
+        subject,
+        text,
+        html,
+      }).catch(err => console.warn('Email send failed:', err.message));
+    }
+
+    res.status(201).json({ message: 'Fee payment recorded.', payment });
   } catch (err) { next(err); }
 });
 

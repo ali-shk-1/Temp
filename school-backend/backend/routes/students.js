@@ -66,22 +66,25 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
-            father_name, contact_1, contact_2, address, admission_date } = req.body;
+            father_name, contact_1, contact_2, email, address, admission_date } = req.body;
 
     if (!roll_no || !section || !cls || !first_name || !last_name) {
       return res.status(400).json({
         error: 'roll_no, section, class, first_name, and last_name are required.',
       });
     }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email address.' });
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO students
          (roll_no, section, class, first_name, last_name,
-          father_name, contact_1, contact_2, address, admission_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          father_name, contact_1, contact_2, email, address, admission_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
       [roll_no, section, cls, first_name, last_name,
-       father_name || null, contact_1 || null, contact_2 || null, address || null,
+       father_name || null, contact_1 || null, contact_2 || null, email || null, address || null,
        admission_date || new Date().toISOString().slice(0, 10)]
     );
 
@@ -97,23 +100,26 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
 router.put('/:id', authorize('principal'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
-            father_name, contact_1, contact_2, address, admission_date } = req.body;
+            father_name, contact_1, contact_2, email, address, admission_date } = req.body;
 
     if (!roll_no || !section || !cls || !first_name || !last_name) {
       return res.status(400).json({
         error: 'roll_no, section, class, first_name, and last_name are required.',
       });
     }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email address.' });
+    }
 
     const { rows } = await pool.query(
       `UPDATE students SET
          roll_no=$1, section=$2, class=$3, first_name=$4, last_name=$5,
-         father_name=$6, contact_1=$7, contact_2=$8, address=$9,
-         admission_date=COALESCE($10, admission_date)
-       WHERE student_id=$11
+         father_name=$6, contact_1=$7, contact_2=$8, email=$9, address=$10,
+         admission_date=COALESCE($11, admission_date)
+       WHERE student_id=$12
        RETURNING *`,
       [roll_no, section, cls, first_name, last_name,
-       father_name || null, contact_1 || null, contact_2 || null, address || null,
+       father_name || null, contact_1 || null, contact_2 || null, email || null, address || null,
        admission_date || null, req.params.id]
     );
 
