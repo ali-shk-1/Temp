@@ -134,6 +134,42 @@ router.get('/defaulters', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.get('/monthly-defaulters', async (req, res, next) => {
+  try {
+    const month = normalizeMonthInput(req.query.month) || `${new Date().toISOString().slice(0, 7)}-01`;
+    const { rows } = await pool.query(
+      `SELECT
+         s.student_id,
+         s.roll_no,
+         s.first_name,
+         s.last_name,
+         s.class,
+         s.section,
+         s.father_name,
+         s.contact_1,
+         s.contact_2,
+         s.address,
+         s.admission_date,
+         SUM(fp.amount_due)  AS total_due,
+         SUM(fp.amount_paid) AS total_paid,
+         SUM(fp.amount_due - fp.amount_paid) AS balance
+       FROM students s
+       JOIN fee_payments fp
+         ON fp.student_id = s.student_id
+         AND DATE_TRUNC('month', fp.academic_month) >= DATE_TRUNC('month', s.admission_date)
+         AND DATE_TRUNC('month', fp.academic_month) <= DATE_TRUNC('month', $1::DATE)
+       WHERE s.admission_date <= $1::DATE
+       GROUP BY s.student_id, s.roll_no, s.first_name, s.last_name,
+                s.class, s.section, s.father_name, s.contact_1, s.contact_2,
+                s.address, s.admission_date
+       HAVING SUM(fp.amount_due - fp.amount_paid) > 0
+       ORDER BY balance DESC`,
+      [month]
+    );
+    res.json({ count: rows.length, month, defaulters: rows });
+  } catch (err) { next(err); }
+});
+
 router.get('/', async (req, res, next) => {
   try {
     const { month, class: cls, search } = req.query;

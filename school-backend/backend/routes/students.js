@@ -63,7 +63,7 @@ router.get('/:id', async (req, res, next) => {
 /* ─────────────────────────────────────────
    POST /api/students
 ───────────────────────────────────────── */
-router.post('/', authorize('admin'), async (req, res, next) => {
+router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, address, admission_date } = req.body;
@@ -94,7 +94,7 @@ router.post('/', authorize('admin'), async (req, res, next) => {
 /* ─────────────────────────────────────────
    PUT /api/students/:id
 ───────────────────────────────────────── */
-router.put('/:id', authorize('admin'), async (req, res, next) => {
+router.put('/:id', authorize('principal'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, address, admission_date } = req.body;
@@ -125,11 +125,11 @@ router.put('/:id', authorize('admin'), async (req, res, next) => {
 });
 
 /* ─────────────────────────────────────────
-   DELETE /api/students/:id  — admin only
+   DELETE /api/students/:id  — principal only
    FIX: deletes fee_payments first inside a transaction so the FK
    constraint on fee_payments.student_id no longer blocks deletion.
 ───────────────────────────────────────── */
-router.delete('/:id', authorize('admin'), async (req, res, next) => {
+router.delete('/:id', authorize('principal'), async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
