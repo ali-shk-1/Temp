@@ -4,12 +4,12 @@
 const BASE_URL = window.location.origin;
 
 function getToken() {
-  return localStorage.getItem('token');
+  return sessionStorage.getItem('token');
 }
 
 function logout() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('user');
   window.location.href = 'login.html';
 }
 
@@ -23,7 +23,7 @@ function checkAuth() {
 }
 
 function renderNav(activePage) {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const pages = [
     { href: 'dashboard.html', label: 'Dashboard', key: 'dashboard' },
     { href: 'students.html',  label: 'Students',  key: 'students'  },

@@ -1,5 +1,5 @@
 function renderNav(activePage) {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const pages = [
     { href: 'dashboard.html', label: 'Dashboard', key: 'dashboard' },
     { href: 'students.html',  label: 'Students',  key: 'students'  },
