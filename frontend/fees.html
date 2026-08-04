@@ -239,6 +239,17 @@
     const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
     const canDeleteFees = currentUser.role === 'principal';
 
+    // Editing an existing fee record (fixing a typo in due/paid amounts)
+    // is principal-only, same as delete — matches the backend's
+    // authorize('principal') on PUT /api/fees/:payment_id.
+    const canEditFees = currentUser.role === 'principal';
+
+    // Set when the payment modal is open in "edit existing record" mode
+    // (as opposed to "record a new payment"). Editing only touches
+    // amount_due/amount_paid — it never resends payment_date, so the
+    // original payment timestamp is preserved on the backend.
+    let editingPaymentId = null;
+
     // Set default month/date
     const todayStr = new Date().toISOString().slice(0,10);
     const monthStr = new Date().toISOString().slice(0,7);
@@ -352,6 +363,7 @@
           <td style="white-space:nowrap;">
             <button class="btn btn-outline btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${due},${paid})">Pay</button>
             <button class="btn btn-outline btn-sm" title="Print receipt" onclick="printMonthlyReceipt(${i})">🖨</button>
+            ${canEditFees ? `<button class="btn btn-outline btn-sm" title="Edit record" onclick="editFeeRecord(${r.payment_id},'${r.first_name} ${r.last_name}',${due},${paid})">✏️</button>` : ''}
             ${canDeleteFees ? `<button class="btn btn-outline btn-sm" title="Delete record" onclick="deleteFeeRecord(${r.payment_id})">🗑</button>` : ''}
           </td>
         </tr>`;
@@ -471,14 +483,18 @@
     }
 
     function openPayModal() {
+      editingPaymentId = null;
       document.getElementById('payStudentSel').value = '';
       document.getElementById('payStudentSearch').value = '';
+      document.getElementById('payStudentSearch').disabled = false;
+      document.getElementById('payMonth').disabled = false;
       document.getElementById('payStudentResults').style.display = 'none';
       document.getElementById('payMonth').value = monthStr;
       document.getElementById('payDue').value = '';
       document.getElementById('payPaid').value = '';
       document.getElementById('existingPayInfo').style.display = 'none';
       document.getElementById('payModalTitle').textContent = 'Record Fee Payment';
+      document.querySelector('#paymentModal .btn-success').textContent = 'Record Payment';
       document.getElementById('paymentModal').classList.add('open');
     }
 
@@ -490,6 +506,24 @@
       document.getElementById('payPaid').value = due - paid;
       document.getElementById('payModalTitle').textContent = `Record Payment — ${name}`;
       onStudentChange();
+    }
+
+    // Opens the payment modal in "edit" mode for an existing fee_payments
+    // row. Student and month are locked (you're correcting this record,
+    // not creating a new one) — only amount_due/amount_paid are editable.
+    // Saving calls PUT /api/fees/:payment_id, which updates only those
+    // two columns and leaves payment_date untouched.
+    function editFeeRecord(paymentId, name, due, paid) {
+      if (!canEditFees) return;
+      openPayModal();
+      editingPaymentId = paymentId;
+      document.getElementById('payStudentSearch').value = name;
+      document.getElementById('payStudentSearch').disabled = true;
+      document.getElementById('payMonth').disabled = true;
+      document.getElementById('payDue').value  = due;
+      document.getElementById('payPaid').value = paid;
+      document.getElementById('payModalTitle').textContent = `Edit Payment — ${name}`;
+      document.querySelector('#paymentModal .btn-success').textContent = 'Save Changes';
     }
 
     // Searchable student picker for the Record Payment modal —
@@ -556,6 +590,9 @@
     }
 
     function closePayModal() {
+      editingPaymentId = null;
+      document.getElementById('payStudentSearch').disabled = false;
+      document.getElementById('payMonth').disabled = false;
       document.getElementById('paymentModal').classList.remove('open');
     }
 
@@ -574,10 +611,28 @@
     }
 
     async function savePayment() {
+      const due  = parseFloat(document.getElementById('payDue').value)  || 0;
+      const paid = parseFloat(document.getElementById('payPaid').value) || 0;
+
+      // ---- Editing an existing record: just correct the amounts.
+      // This hits PUT /api/fees/:payment_id, which never sends/overwrites
+      // payment_date, so the original payment timestamp stays as-is.
+      if (editingPaymentId) {
+        try {
+          await api('PUT', `/api/fees/${editingPaymentId}`, {
+            amount_due:  due,
+            amount_paid: paid
+          });
+          showToast('Payment record updated.', 'success');
+          closePayModal();
+          loadMonthlyRecords();
+          loadStats();
+        } catch (e) { showToast(e.message, 'error'); }
+        return;
+      }
+
       const studentId = document.getElementById('payStudentSel').value;
       const month     = document.getElementById('payMonth').value;
-      const due       = parseFloat(document.getElementById('payDue').value)  || 0;
-      const paid      = parseFloat(document.getElementById('payPaid').value) || 0;
       if (!studentId) { showToast('Select a student.', 'error'); return; }
       if (!month)     { showToast('Select a month.', 'error');   return; }
       if (paid <= 0)  { showToast('Amount paid must be > 0.', 'error'); return; }

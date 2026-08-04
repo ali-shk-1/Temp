@@ -185,15 +185,32 @@ router.get('/daily', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/:payment_id', authorize('admin', 'accountant', 'principal'), async (req, res, next) => {
+// Editing an existing record is principal-only — same rule as delete
+// (admin can create new payments via POST, but not retroactively edit
+// amounts on an already-recorded one).
+router.put('/:payment_id', authorize('principal'), async (req, res, next) => {
   try {
-    const { amount_paid } = req.body;
-    if (amount_paid == null) return res.status(400).json({ error: 'amount_paid is required.' });
+    const { amount_paid, amount_due } = req.body;
+    if (amount_paid == null && amount_due == null) {
+      return res.status(400).json({ error: 'amount_paid or amount_due is required.' });
+    }
+
+    // Editing an existing record (e.g. fixing a typo) should NOT touch
+    // payment_date — that column reflects when the payment was actually
+    // made/collected, not when someone last corrected the row. We only
+    // update the columns that were actually sent.
+    const sets = [];
+    const vals = [];
+    let idx = 1;
+    if (amount_due != null) { sets.push(`amount_due = $${idx++}`);  vals.push(amount_due); }
+    if (amount_paid != null) { sets.push(`amount_paid = $${idx++}`); vals.push(amount_paid); }
+    vals.push(req.params.payment_id);
+
     const { rows } = await pool.query(
-      `UPDATE fee_payments SET amount_paid = $1, payment_date = NOW()
-       WHERE payment_id = $2
+      `UPDATE fee_payments SET ${sets.join(', ')}
+       WHERE payment_id = $${idx}
        RETURNING *`,
-      [amount_paid, req.params.payment_id]
+      vals
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Payment record not found.' });
     res.json({ message: 'Payment updated.', payment: rows[0] });
