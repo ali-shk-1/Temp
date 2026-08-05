@@ -35,6 +35,9 @@ function getTransporter() {
   }
 
   transporter = nodemailer.createTransport(transportOptions);
+  transporter.verify()
+    .then(() => console.log('SMTP transporter verified and ready.'))
+    .catch(err => console.error('SMTP transporter verification failed:', err.message));
   return transporter;
 }
 
@@ -45,6 +48,7 @@ async function sendMail({ to, subject, text, html, from }) {
 
   const transport = getTransporter();
   if (!transport) {
+    console.warn('Mailer not configured: email skipped for', to);
     return Promise.resolve();
   }
 
@@ -56,7 +60,16 @@ async function sendMail({ to, subject, text, html, from }) {
     html,
   };
 
-  return transport.sendMail(message);
+  console.log('Sending email to', to, 'subject:', subject);
+  return transport.sendMail(message)
+    .then(info => {
+      console.log('Email sent:', info.messageId);
+      return info;
+    })
+    .catch(err => {
+      console.error('Email send failed:', err.message, err.response || '');
+      throw err;
+    });
 }
 
 module.exports = { sendMail };
