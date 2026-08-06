@@ -78,6 +78,32 @@ async function seed() {
       console.log('ℹ️   Admin account already exists. Skipping.');
     }
 
+    /* ── Default Principal Account ───────── */
+    const principalUsername = 'principal';
+    const principalPassword = 'Principal@123';
+
+    const existingPrincipal = await client.query(
+      'SELECT user_id FROM users WHERE username = $1', [principalUsername]
+    );
+
+    if (existingPrincipal.rows.length === 0) {
+      const principalHash = await bcrypt.hash(principalPassword, 12);
+      const principalRoleRes = await client.query(
+        "SELECT role_id FROM roles WHERE role_name = 'principal'"
+      );
+      const principalRoleId = principalRoleRes.rows[0].role_id;
+
+      await client.query(
+        `INSERT INTO users (username, password_hash, role_id)
+         VALUES ($1, $2, $3)`,
+        [principalUsername, principalHash, principalRoleId]
+      );
+      console.log(`✅  Principal account created  →  username: "${principalUsername}"  password: "${principalPassword}"`);
+      console.log('⚠️   CHANGE THIS PASSWORD IMMEDIATELY after first login.');
+    } else {
+      console.log('ℹ️   Principal account already exists. Skipping.');
+    }
+
     await client.query('COMMIT');
     console.log('✅  Seed complete.');
   } catch (err) {

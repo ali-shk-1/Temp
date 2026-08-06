@@ -63,7 +63,7 @@ router.get('/', async (req, res, next) => {
       vals.push(designation_id);
     }
     if (search) {
-      query += ` AND (LOWER(s.name) LIKE $${idx} OR s.staff_code LIKE $${idx} OR s.cnic LIKE $${idx})`;
+      query += ` AND (LOWER(s.name) LIKE $${idx} OR s.cnic LIKE $${idx})`;
       vals.push(`%${search.toLowerCase()}%`);
       idx++;
     }
@@ -92,17 +92,17 @@ router.get('/:id', async (req, res, next) => {
 // POST /api/staff
 router.post('/', authorize('admin'), async (req, res, next) => {
   try {
-    const { name, staff_code, cnic, phone_no, salary, designation_id } = req.body;
+    const { name, cnic, phone_no, salary, designation_id } = req.body;
 
-    if (!name || !staff_code || !cnic) {
-      return res.status(400).json({ error: 'name, staff_code, and cnic are required.' });
+    if (!name || !cnic) {
+      return res.status(400).json({ error: 'name and cnic are required.' });
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO staff (name, staff_code, cnic, phone_no, salary, designation_id)
-       VALUES ($1,$2,$3,$4,$5,$6)
+      `INSERT INTO staff (name, cnic, phone_no, salary, designation_id)
+       VALUES ($1,$2,$3,$4,$5)
        RETURNING *`,
-      [name, staff_code, cnic, phone_no || null, salary || null, designation_id || null]
+      [name, cnic, phone_no || null, salary || null, designation_id || null]
     );
     res.status(201).json({ message: 'Staff member added.', staff: rows[0] });
   } catch (err) { next(err); }
@@ -111,18 +111,18 @@ router.post('/', authorize('admin'), async (req, res, next) => {
 // PUT /api/staff/:id
 router.put('/:id', authorize('admin'), async (req, res, next) => {
   try {
-    const { name, staff_code, cnic, phone_no, salary, designation_id } = req.body;
+    const { name, cnic, phone_no, salary, designation_id } = req.body;
 
-    if (!name || !staff_code || !cnic) {
-      return res.status(400).json({ error: 'name, staff_code, and cnic are required.' });
+    if (!name || !cnic) {
+      return res.status(400).json({ error: 'name and cnic are required.' });
     }
 
     const { rows } = await pool.query(
-      `UPDATE staff SET name=$1, staff_code=$2, cnic=$3,
-         phone_no=$4, salary=$5, designation_id=$6
-       WHERE staff_id=$7
+      `UPDATE staff SET name=$1, cnic=$2,
+         phone_no=$3, salary=$4, designation_id=$5
+       WHERE staff_id=$6
        RETURNING *`,
-      [name, staff_code, cnic, phone_no || null, salary || null, designation_id || null, req.params.id]
+      [name, cnic, phone_no || null, salary || null, designation_id || null, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Staff member not found.' });
     res.json({ message: 'Staff member updated.', staff: rows[0] });

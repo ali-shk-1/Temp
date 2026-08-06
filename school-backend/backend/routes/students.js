@@ -5,6 +5,30 @@ const multer = require('multer');
 const pool   = require('../db');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 
+const allowedClasses = new Set([
+  'playgroup', 'nursery', 'prep',
+  '1','2','3','4','5','6','7','8','9','10'
+]);
+
+function sanitizeFilenameSegment(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_-]/g, '');
+}
+
+function buildStudentPhotoFilename(body, originalName) {
+  const segments = [
+    body.first_name,
+    body.class,
+    body.section,
+    body.roll_no
+  ].filter(Boolean).map(sanitizeFilenameSegment);
+  const base = segments.length ? segments.join('_') : Math.random().toString(36).slice(2, 10);
+  return `${base}-${Date.now()}${path.extname(originalName)}`;
+}
+
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -13,7 +37,7 @@ if (!fs.existsSync(uploadsDir)) {
 const storage = multer.diskStorage({
   destination: uploadsDir,
   filename: (req, file, cb) => {
-    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${path.extname(file.originalname)}`;
+    const safeName = buildStudentPhotoFilename(req.body, file.originalname);
     cb(null, safeName);
   }
 });
@@ -84,6 +108,58 @@ router.get('/', async (req, res, next) => {
 /* ─────────────────────────────────────────
    GET /api/students/:id
 ───────────────────────────────────────── */
+router.get('/left', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM left_students ORDER BY left_date DESC, roll_no`
+    );
+    res.json({ count: rows.length, former_students: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/leave', authorize('admin', 'principal'), async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { left_reason } = req.body;
+    await client.query('BEGIN');
+
+    const { rows: studentRows } = await client.query(
+      'SELECT * FROM students WHERE student_id = $1',
+      [req.params.id]
+    );
+    if (studentRows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Student not found.' });
+    }
+
+    const student = studentRows[0];
+
+    await client.query(
+      `INSERT INTO left_students
+         (roll_no, section, class, first_name, last_name,
+          father_name, contact_1, contact_2, email, photo_url, address,
+          admission_date, left_date, left_reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [student.roll_no, student.section, student.class, student.first_name, student.last_name,
+       student.father_name, student.contact_1, student.contact_2, student.email, student.photo_url,
+       student.address, student.admission_date, new Date().toISOString().slice(0,10), left_reason || null]
+    );
+
+    await client.query('DELETE FROM fee_payments WHERE student_id = $1', [req.params.id]);
+    await client.query('DELETE FROM students WHERE student_id = $1', [req.params.id]);
+
+    await client.query('COMMIT');
+    res.json({ message: 'Student moved to left_students.', student_id: req.params.id });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -98,6 +174,22 @@ router.get('/:id', async (req, res, next) => {
 });
 
 /* ─────────────────────────────────────────
+   GET /api/students/meta/classes
+───────────────────────────────────────── */
+router.get('/meta/classes', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT class, section
+       FROM students
+       ORDER BY class, section`
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ─────────────────────────────────────────
    POST /api/students
 ───────────────────────────────────────── */
 router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
@@ -105,10 +197,22 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, email, photo_url, address, admission_date } = req.body;
 
-    if (!roll_no || !section || !cls || !first_name || !last_name) {
+    if (!section || !cls || !first_name || !last_name) {
       return res.status(400).json({
-        error: 'roll_no, section, class, first_name, and last_name are required.',
+        error: 'section, class, first_name, and last_name are required.',
       });
+    }
+    const normalizedClass = String(cls).trim().toLowerCase();
+    if (!allowedClasses.has(normalizedClass)) {
+      return res.status(400).json({ error: 'Class must be one of playgroup, nursery, prep, or 1 through 10.' });
+    }
+    let rollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
+    if (rollNo != null && (!Number.isInteger(rollNo) || rollNo <= 0)) {
+      return res.status(400).json({ error: 'Roll No must be a positive integer if provided.' });
+    }
+    if (rollNo == null) {
+      const { rows: maxRow } = await pool.query('SELECT MAX(roll_no) AS max_roll FROM students');
+      rollNo = (maxRow[0]?.max_roll || 0) + 1;
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address.' });
@@ -123,7 +227,7 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
           father_name, contact_1, contact_2, email, photo_url, address, admission_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
-      [roll_no, section, cls, first_name, last_name,
+      [rollNo, section, normalizedClass, first_name, last_name,
        father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
        admission_date || new Date().toISOString().slice(0, 10)]
     );
@@ -142,10 +246,18 @@ router.put('/:id', authorize('admin', 'principal'), async (req, res, next) => {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, email, photo_url, address, admission_date } = req.body;
 
-    if (!roll_no || !section || !cls || !first_name || !last_name) {
+    if (!section || !cls || !first_name || !last_name) {
       return res.status(400).json({
-        error: 'roll_no, section, class, first_name, and last_name are required.',
+        error: 'section, class, first_name, and last_name are required.',
       });
+    }
+    const normalizedClass = String(cls).trim().toLowerCase();
+    if (!allowedClasses.has(normalizedClass)) {
+      return res.status(400).json({ error: 'Class must be one of playgroup, nursery, prep, or 1 through 10.' });
+    }
+    const rollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
+    if (rollNo != null && (!Number.isInteger(rollNo) || rollNo <= 0)) {
+      return res.status(400).json({ error: 'Roll No must be a positive integer if provided.' });
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address.' });
@@ -156,12 +268,12 @@ router.put('/:id', authorize('admin', 'principal'), async (req, res, next) => {
 
     const { rows } = await pool.query(
       `UPDATE students SET
-         roll_no=$1, section=$2, class=$3, first_name=$4, last_name=$5,
+         roll_no=COALESCE($1, roll_no), section=$2, class=$3, first_name=$4, last_name=$5,
          father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
          admission_date=COALESCE($12, admission_date)
        WHERE student_id=$13
        RETURNING *`,
-      [roll_no, section, cls, first_name, last_name,
+      [rollNo, section, normalizedClass, first_name, last_name,
        father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
        admission_date || null, req.params.id]
     );
