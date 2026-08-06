@@ -45,18 +45,14 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Roll No *</label>
-            <input type="number" id="rollNo" required/>
+            <label>Roll No</label>
+            <input type="number" id="rollNo" placeholder="Leave blank for auto assign"/>
+            <small style="color:#666;display:block;margin-top:4px;">If no roll number is entered, the system assigns the next available number.</small>
           </div>
           <div class="form-group">
             <label>Class *</label>
-            <select id="classField">
-              <option value="">Select class</option>
-              <option>Nursery</option><option>KG</option>
-              <option>1</option><option>2</option><option>3</option>
-              <option>4</option><option>5</option><option>6</option>
-              <option>7</option><option>8</option><option>9</option><option>10</option>
-            </select>
+            <input type="text" id="classField" required placeholder="playgroup, nursery, prep or 1-10" />
+            <small style="color:#666;display:block;margin-top:4px;">Enter a valid class name. Only playgroup, nursery, prep, and 1 through 10 are accepted.</small>
           </div>
           <div class="form-group">
             <label>Section *</label>
@@ -149,23 +145,17 @@
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">Students</h1>
-      <button class="btn btn-primary" onclick="openModal()">+ Add Student</button>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-secondary" onclick="window.location.href='left-students.html'">Left Students</button>
+        <button class="btn btn-primary" onclick="openModal()">+ Add Student</button>
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:16px;">
       <div class="filters">
         <input class="search-box" type="text" id="searchInput" placeholder="Search name, roll no…" oninput="filterTable()"/>
-        <select id="filterClass" onchange="filterTable()">
-          <option value="">All Classes</option>
-          <option>Nursery</option><option>KG</option>
-          <option>1</option><option>2</option><option>3</option>
-          <option>4</option><option>5</option><option>6</option>
-          <option>7</option><option>8</option><option>9</option><option>10</option>
-        </select>
-        <select id="filterSection" onchange="filterTable()">
-          <option value="">All Sections</option>
-          <option>A</option><option>B</option><option>C</option>
-        </select>
+        <input class="search-box" type="text" id="filterClass" placeholder="Filter by class" oninput="filterTable()" style="max-width:220px;"/>
+        <input class="search-box" type="text" id="filterSection" placeholder="Filter by section" oninput="filterTable()" style="max-width:160px;"/>
         <span id="countLabel" style="font-size:12px;color:#888;margin-left:auto;"></span>
       </div>
     </div>
@@ -229,6 +219,7 @@
           <td>
             <button class="btn btn-outline btn-sm" onclick="viewStudent(${s.student_id})">View</button>
             <button class="btn btn-outline btn-sm" onclick="editStudent(${s.student_id})">Edit</button>
+            <button class="btn btn-warning btn-sm" onclick="leaveStudent(${s.student_id})">Leave</button>
             <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.student_id})">Delete</button>
             </td>
         </tr>`).join('');
@@ -329,8 +320,8 @@
       const body = {
         first_name:  document.getElementById('firstName').value.trim(),
         last_name:   document.getElementById('lastName').value.trim(),
-        roll_no:     parseInt(document.getElementById('rollNo').value),
-        class:       document.getElementById('classField').value,
+        roll_no:     document.getElementById('rollNo').value ? parseInt(document.getElementById('rollNo').value, 10) : null,
+        class:       document.getElementById('classField').value.trim(),
         section:     document.getElementById('section').value.trim().toUpperCase(),
         father_name: document.getElementById('fatherName').value.trim(),
         admission_date: document.getElementById('admissionDate').value || null,
@@ -341,13 +332,17 @@
         address:     document.getElementById('address').value.trim(),
       };
       const photoFile = document.getElementById('photoFile').files[0];
-      if (!body.first_name || !body.last_name || !body.roll_no || !body.class || !body.section) {
+      if (!body.first_name || !body.last_name || !body.class || !body.section) {
         showToast('Please fill all required fields.', 'error'); return;
       }
       try {
         if (photoFile) {
           const formData = new FormData();
           formData.append('photo', photoFile);
+          formData.append('first_name', body.first_name);
+          formData.append('class', body.class);
+          formData.append('section', body.section);
+          formData.append('roll_no', body.roll_no || '');
           const upload = await apiForm('/api/students/upload-photo', formData);
           body.photo_url = upload.url;
         }
@@ -371,6 +366,17 @@
     try {
         await api('DELETE', `/api/students/${id}`);
         showToast('Student deleted.');
+        loadStudents();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function leaveStudent(id) {
+      const s = allStudents.find(x => x.student_id === id);
+      const name = s ? `${s.first_name} ${s.last_name}` : 'this student';
+      if (!confirm(`Mark student "${name}" as left the school?`)) return;
+      try {
+        await api('POST', `/api/students/${id}/leave`, { left_reason: 'Left school' });
+        showToast('Student moved to left students records.', 'success');
         loadStudents();
       } catch(e) { showToast(e.message, 'error'); }
     }

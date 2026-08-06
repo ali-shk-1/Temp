@@ -3,6 +3,7 @@ function renderNav(activePage) {
   const pages = [
     { href: 'dashboard.html', label: 'Dashboard', key: 'dashboard' },
     { href: 'students.html',  label: 'Students',  key: 'students'  },
+    { href: 'left-students.html', label: 'Left Students', key: 'left-students' },
     { href: 'staff.html',     label: 'Staff',     key: 'staff'     },
     { href: 'fees.html',      label: 'Fees',      key: 'fees'      },
     { href: 'expenses.html',  label: 'Expenses',  key: 'expenses'  },

@@ -56,6 +56,9 @@
             <input type="number" id="payPaid" step="0.01" placeholder="0"/>
           </div>
         </div>
+        <div style="font-size:12px;color:#666;margin-bottom:10px;">
+          For free students, enter 0 for both Amount Due and Amount Paid.
+        </div>
         <div id="existingPayInfo" style="display:none;background:#fff8e1;border:1px solid #ffe082;padding:10px;border-radius:4px;font-size:12px;margin-bottom:10px;"></div>
         <div class="modal-footer">
           <button class="btn btn-outline" onclick="closePayModal()">Cancel</button>
@@ -348,9 +351,10 @@
         const bal  = due - paid;
         const canPay = bal > 0;
         let stCls, stLabel;
-        if (paid >= due)   { stCls = 'badge-success'; stLabel = 'Paid'; }
-        else if (paid > 0) { stCls = 'badge-warning'; stLabel = 'Partial'; }
-        else               { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
+        if (due === 0 && paid === 0) { stCls = 'badge-success'; stLabel = 'Free'; }
+        else if (paid >= due)         { stCls = 'badge-success'; stLabel = 'Paid'; }
+        else if (paid > 0)            { stCls = 'badge-warning'; stLabel = 'Partial'; }
+        else                          { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
         return `<tr>
           <td>${r.roll_no}</td>
           <td>${r.first_name} ${r.last_name}</td>
@@ -478,9 +482,10 @@
           const bal  = due - paid;
           totalDue  += due; totalPaid += paid;
           let stCls, stLabel;
-          if (paid >= due)   { stCls = 'badge-success'; stLabel = 'Paid'; }
-          else if (paid > 0) { stCls = 'badge-warning'; stLabel = 'Partial'; }
-          else               { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
+          if (due === 0 && paid === 0) { stCls = 'badge-success'; stLabel = 'Free'; }
+          else if (paid >= due)         { stCls = 'badge-success'; stLabel = 'Paid'; }
+          else if (paid > 0)            { stCls = 'badge-warning'; stLabel = 'Partial'; }
+          else                          { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
           return `<tr>
             <td>${r.academic_month ? new Date(r.academic_month).toLocaleDateString('en-GB',{month:'long',year:'numeric'}) : '—'}</td>
             <td>${formatMoney(due)}</td>
@@ -660,7 +665,8 @@
       const month     = document.getElementById('payMonth').value;
       if (!studentId) { showToast('Select a student.', 'error'); return; }
       if (!month)     { showToast('Select a month.', 'error');   return; }
-      if (paid <= 0)  { showToast('Amount paid must be > 0.', 'error'); return; }
+      if (paid < 0)   { showToast('Amount paid cannot be negative.', 'error'); return; }
+      if (due > 0 && paid <= 0) { showToast('Enter a payment amount for a due fee.', 'error'); return; }
       try {
         const res = await api('POST', '/api/fees', {
           student_id:     parseInt(studentId),

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+  <title>Left Students — School Management</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Left Students</h1>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
+              <th>Admission</th><th>Left Date</th><th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="leftStudentsBody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    checkAuth();
+    renderNav('left-students');
+    async function loadLeftStudents() {
+      const tbody = document.getElementById('leftStudentsBody');
+      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+      try {
+        const res = await api('GET', '/api/students/left');
+        const data = normalizeList(res, ['former_students', 'students', 'data']);
+        if (!data.length) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty">No left students found.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.map(s => `
+          <tr>
+            <td>${s.roll_no || '—'}</td>
+            <td>${s.first_name} ${s.last_name}</td>
+            <td>${s.class || '—'}</td>
+            <td>${s.section || '—'}</td>
+            <td>${s.admission_date ? new Date(s.admission_date).toLocaleDateString('en-GB') : '—'}</td>
+            <td>${s.left_date ? new Date(s.left_date).toLocaleDateString('en-GB') : '—'}</td>
+            <td>${s.left_reason || '—'}</td>
+          </tr>`).join('');
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load left students.</td></tr>';
+      }
+    }
+    loadLeftStudents();
+  </script>
+</body>
+</html>

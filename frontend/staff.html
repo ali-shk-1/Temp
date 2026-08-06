@@ -39,13 +39,9 @@
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label>Staff Code *</label>
-            <input type="text" id="staffCode" placeholder="e.g. TCH-001"/>
-          </div>
-          <div class="form-group">
+          <div class="form-group" style="flex:1 1 100%;">
             <label>CNIC *</label>
-            <input type="text" id="cnic" placeholder="xxxxx-xxxxxxx-x"/>
+            <input type="text" id="cnic" placeholder="xxxxx-xxxxxxx-x" required/>
           </div>
         </div>
         <div class="form-row">
@@ -101,7 +97,7 @@
 
     <div class="card" style="margin-bottom:16px;">
       <div class="filters">
-        <input class="search-box" type="text" id="searchInput" placeholder="Search name, code, CNIC…" oninput="filterTable()"/>
+        <input class="search-box" type="text" id="searchInput" placeholder="Search name or CNIC…" oninput="filterTable()"/>
         <select id="filterDesig" onchange="filterTable()">
           <option value="">All Designations</option>
         </select>
@@ -114,7 +110,7 @@
         <table>
           <thead>
             <tr>
-              <th>Code</th><th>Name</th><th>Designation</th><th>CNIC</th>
+              <th>Name</th><th>Designation</th><th>CNIC</th>
               <th>Phone</th><th>Salary</th><th>Actions</th>
             </tr>
           </thead>
@@ -175,7 +171,6 @@
       }
       tbody.innerHTML = list.map(s => `
         <tr>
-          <td>${s.staff_code}</td>
           <td><strong>${s.name}</strong></td>
           <td>${s.designation_title || '—'}</td>
           <td>${s.cnic}</td>
@@ -192,7 +187,7 @@
       const q    = document.getElementById('searchInput').value.toLowerCase();
       const desig = document.getElementById('filterDesig').value;
       const list = allStaff.filter(s => {
-        const txt = `${s.name} ${s.staff_code} ${s.cnic}`.toLowerCase();
+        const txt = `${s.name} ${s.cnic}`.toLowerCase();
         return (!q || txt.includes(q)) && (!desig || String(s.designation_id) === desig);
       });
       renderTable(list);
@@ -201,7 +196,6 @@
     function openModal(staff = null) {
       document.getElementById('staffId').value       = staff ? staff.staff_id    : '';
       document.getElementById('staffName').value     = staff ? staff.name        : '';
-      document.getElementById('staffCode').value     = staff ? staff.staff_code  : '';
       document.getElementById('cnic').value          = staff ? staff.cnic        : '';
       document.getElementById('phone').value         = staff ? (staff.phone_no || '') : '';
       document.getElementById('salary').value        = staff ? (staff.salary    || '') : '';
@@ -223,14 +217,13 @@
       const id   = document.getElementById('staffId').value;
       const body = {
         name:           document.getElementById('staffName').value.trim(),
-        staff_code:     document.getElementById('staffCode').value.trim(),
         cnic:           document.getElementById('cnic').value.trim(),
         phone_no:       document.getElementById('phone').value.trim(),
         salary:         parseFloat(document.getElementById('salary').value) || 0,
         designation_id: parseInt(document.getElementById('designationId').value) || null,
       };
-      if (!body.name || !body.staff_code || !body.cnic) {
-        showToast('Name, code and CNIC are required.', 'error'); return;
+      if (!body.name || !body.cnic) {
+        showToast('Name and CNIC are required.', 'error'); return;
       }
       try {
         if (id) {

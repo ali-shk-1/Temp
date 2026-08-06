@@ -210,7 +210,7 @@ router.get('/monthly-defaulters', async (req, res, next) => {
                   INTERVAL '1 month'
                 )::date AS academic_month
          FROM students s
-         WHERE s.admission_date <= $1::DATE
+         WHERE DATE_TRUNC('month', s.admission_date) <= DATE_TRUNC('month', $1::DATE)
        ),
        payment_agg AS (
          SELECT fp.student_id,
