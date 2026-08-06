@@ -1,7 +1,8 @@
-const CACHE_NAME = "school-mgmt-shell-v1";
+const CACHE_NAME = "school-mgmt-shell-v2";
 const SHELL_FILES = [
   "login.html","dashboard.html","students.html","staff.html","fees.html","expenses.html",
-  "style.css","api.js","nav.js","manifest.json","icon-192.png","icon-512.png"
+  "left-students.html","permissions.html",
+  "style.css","students.css","api.js","nav.js","manifest.json","icon-192.png","icon-512.png"
 ];
 
 self.addEventListener("install", (e) => {

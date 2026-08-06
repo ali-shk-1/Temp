@@ -1,13 +1,89 @@
+/**
+ * nav.js — renders the top nav bar and exposes permission helpers used by
+ * every page (students.html, staff.html, fees.html, expenses.html, etc.)
+ * to show/hide add/edit/delete controls.
+ *
+ * Loaded AFTER api.js, so this renderNav definition is the one that wins.
+ *
+ * Roles:
+ *   - ali     : sees every nav link + an extra "Permissions" link, and
+ *               always has every permission (hasPerm always true).
+ *   - viewer  : sees every nav link (can browse everywhere); hasPerm()
+ *               reflects whatever ali has toggled for viewer, same as
+ *               admin/principal below. Defaults to all-false only until
+ *               ali turns something on.
+ *   - admin / principal / viewer : hasPerm() reflects whatever ali has
+ *               toggled for that role (fetched from /api/permissions/me
+ *               once per session and cached in sessionStorage).
+ */
+
+const ALL_PAGES = [
+  { href: 'dashboard.html', label: 'Dashboard', key: 'dashboard' },
+  { href: 'students.html',  label: 'Students',  key: 'students'  },
+  { href: 'left-students.html', label: 'Left Students', key: 'left-students' },
+  { href: 'staff.html',     label: 'Staff',     key: 'staff'     },
+  { href: 'fees.html',      label: 'Fees',      key: 'fees'      },
+  { href: 'expenses.html',  label: 'Expenses',  key: 'expenses'  },
+];
+
+function currentUserRole() {
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+  return String(user.role || '').toLowerCase();
+}
+
+function isAliUser() {
+  return currentUserRole() === 'ali';
+}
+
+/**
+ * hasPerm('students.add') -> true/false
+ * - ali: always true
+ * - admin/principal/viewer: read from the cached permission map, loaded
+ *   via loadMyPermissions() (called once at the top of every page, right
+ *   after checkAuth()). Defaults to false if not yet loaded, so buttons
+ *   fail safe (hidden) rather than showing before we know for sure.
+ */
+function hasPerm(permissionKey) {
+  const role = currentUserRole();
+  if (role === 'ali') return true;
+  try {
+    const map = JSON.parse(sessionStorage.getItem('myPermissions') || '{}');
+    return !!map[permissionKey];
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches this session's effective permissions from the backend and
+ * caches them in sessionStorage so hasPerm() can be used synchronously
+ * while rendering the page. Call this once, near the top of each page,
+ * right after checkAuth(). Safe to call for every role — for ali it's a
+ * no-op since hasPerm() doesn't consult the cache for ali.
+ */
+async function loadMyPermissions() {
+  const role = currentUserRole();
+  if (role === 'ali') return;
+  try {
+    const res = await api('GET', '/api/permissions/me');
+    if (res && res.permissions) {
+      sessionStorage.setItem('myPermissions', JSON.stringify(res.permissions));
+    }
+  } catch (err) {
+    // If this fails (e.g. older backend without the route yet), fall back
+    // to nothing cached — hasPerm() will return false and controls stay
+    // hidden, which is the safe direction to fail in.
+    console.warn('Could not load permissions:', err.message);
+  }
+}
+
 function renderNav(activePage) {
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-  const pages = [
-    { href: 'dashboard.html', label: 'Dashboard', key: 'dashboard' },
-    { href: 'students.html',  label: 'Students',  key: 'students'  },
-    { href: 'left-students.html', label: 'Left Students', key: 'left-students' },
-    { href: 'staff.html',     label: 'Staff',     key: 'staff'     },
-    { href: 'fees.html',      label: 'Fees',      key: 'fees'      },
-    { href: 'expenses.html',  label: 'Expenses',  key: 'expenses'  },
-  ];
+  const pages = [...ALL_PAGES];
+
+  if (isAliUser()) {
+    pages.push({ href: 'permissions.html', label: 'Permissions', key: 'permissions' });
+  }
 
   const links = pages.map(p =>
     `<a href="${p.href}" class="${activePage === p.key ? 'active' : ''}">${p.label}</a>`
@@ -19,7 +95,7 @@ function renderNav(activePage) {
       <a class="brand" href="dashboard.html">🏫 School Mgmt</a>
       <nav>${links}</nav>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span style="color:#aaa;font-size:12px;">${user.username || ''}</span>
+        <span style="color:#aaa;font-size:12px;">${user.username || ''}${user.role ? ' · ' + user.role : ''}</span>
         <button class="logout-btn" onclick="logout()">Logout</button>
       </div>
     </nav>

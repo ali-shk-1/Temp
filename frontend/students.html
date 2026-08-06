@@ -151,7 +151,7 @@
     <div class="page-header">
       <h1 class="page-title">Students</h1>
       <div style="display:flex;gap:10px;align-items:center;">
-        <button class="btn btn-primary" onclick="openModal()">+ Add Student</button>
+        <button class="btn btn-primary" id="addStudentBtn" onclick="openModal()" style="display:none;">+ Add Student</button>
       </div>
     </div>
 
@@ -191,6 +191,10 @@
     let allStudents = [];
     const todayStr = new Date().toISOString().slice(0,10);
 
+    function applyPermissionUI() {
+      document.getElementById('addStudentBtn').style.display = hasPerm('students.add') ? '' : 'none';
+    }
+
     async function loadStudents() {
       const tbody = document.getElementById('studentTableBody');
       try {
@@ -222,9 +226,9 @@
           <td style="font-size:12px;color:#888;">${s.admission_date ? formatDate(s.admission_date) : '—'}</td>
           <td>
             <button class="btn btn-outline btn-sm" onclick="viewStudent(${s.student_id})">View</button>
-            <button class="btn btn-outline btn-sm" onclick="editStudent(${s.student_id})">Edit</button>
-            <button class="btn btn-warning btn-sm" onclick="leaveStudent(${s.student_id})">Leave</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.student_id})">Delete</button>
+            ${hasPerm('students.edit') ? `<button class="btn btn-outline btn-sm" onclick="editStudent(${s.student_id})">Edit</button>` : ''}
+            ${hasPerm('students.leave') ? `<button class="btn btn-warning btn-sm" onclick="leaveStudent(${s.student_id})">Leave</button>` : ''}
+            ${hasPerm('students.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.student_id})">Delete</button>` : ''}
             </td>
         </tr>`).join('');
     }
@@ -410,7 +414,11 @@
       } catch(e) { showToast(e.message, 'error'); }
     }
 
-    loadStudents();
+    (async function init() {
+      await loadMyPermissions();
+      applyPermissionUI();
+      await loadStudents();
+    })();
   </script>
 </body>
 </html>

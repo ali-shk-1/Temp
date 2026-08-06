@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <title>Permissions — School Management</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <!-- Change Password Modal -->
+  <div class="modal-overlay" id="pwModal">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="pwModalTitle">Change Password</h2>
+        <button class="modal-close" onclick="closePwModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <input type="hidden" id="pwUserId"/>
+        <div class="form-group">
+          <label>New Password *</label>
+          <input type="password" id="pwNewPassword" placeholder="At least 6 characters" autocomplete="new-password"/>
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password *</label>
+          <input type="password" id="pwConfirmPassword" placeholder="Re-enter password" autocomplete="new-password"/>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closePwModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="savePassword()">Update Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Permissions</h1>
+      <span class="ali-badge">Ali — Top Level Access</span>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <p style="font-size:13px;color:var(--muted);line-height:1.6;">
+        Toggle exactly what each account is allowed to do. Turning something off
+        hides that button/action for every user with that role, immediately —
+        no re-login required for pages loaded after the change. Ali always has
+        every permission and cannot be restricted here.
+      </p>
+    </div>
+
+    <div id="permissionsContainer">
+      <div class="card loading">Loading permissions…</div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    checkAuth();
+    renderNav('permissions');
+
+    // Hard guard: this page is for ali only. If anyone else somehow lands
+    // here (e.g. typed the URL directly), bounce them to the dashboard —
+    // the backend would reject every call here anyway (authorize('ali')),
+    // but this keeps the UI from ever showing broken/empty controls.
+    if (currentUserRole() !== 'ali') {
+      window.location.href = 'dashboard.html';
+    }
+
+    const ROLE_LABELS = { admin: 'Admin', principal: 'Principal', viewer: 'Viewer' };
+    let permData = null; // last response from GET /api/permissions
+
+    async function loadPermissions() {
+      const container = document.getElementById('permissionsContainer');
+      try {
+        permData = await api('GET', '/api/permissions');
+        renderPermissions();
+      } catch (e) {
+        container.innerHTML = `<div class="card empty">Failed to load permissions: ${e.message}</div>`;
+      }
+    }
+
+    function renderPermissions() {
+      const container = document.getElementById('permissionsContainer');
+      const { groups, roles } = permData;
+
+      container.innerHTML = roles.map(roleEntry => {
+        const roleLabel = ROLE_LABELS[roleEntry.role] || roleEntry.role;
+        const usernames = roleEntry.users.length
+          ? roleEntry.users.map(u => `${u.username}${u.is_active ? '' : ' (disabled)'}`).join(', ')
+          : 'No account currently has this role';
+        const firstUser = roleEntry.users[0];
+
+        const groupsHtml = groups.map(g => `
+          <div class="perm-group-title">${g.label}</div>
+          <div class="perm-grid">
+            ${g.permissions.map(p => `
+              <div class="perm-row">
+                <span>${p.label}</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" data-role="${roleEntry.role}" data-key="${p.key}"
+                    ${roleEntry.permissions[p.key] ? 'checked' : ''}
+                    onchange="togglePermission(this)"/>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            `).join('')}
+          </div>
+        `).join('');
+
+        return `
+          <div class="card perm-user-card">
+            <div class="perm-user-header">
+              <div>
+                <div class="perm-user-title">${roleLabel}</div>
+                <div class="perm-user-sub">${usernames}</div>
+              </div>
+              ${firstUser ? `<button class="btn btn-outline btn-sm" onclick="openPwModal(${firstUser.user_id}, '${firstUser.username}')">Change Password</button>` : ''}
+            </div>
+            ${groupsHtml}
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function togglePermission(checkbox) {
+      const role = checkbox.dataset.role;
+      const key  = checkbox.dataset.key;
+      const allowed = checkbox.checked;
+      checkbox.disabled = true;
+      try {
+        await api('PUT', `/api/permissions/${role}`, { permission_key: key, allowed });
+        showToast(`${allowed ? 'Enabled' : 'Disabled'} "${key}" for ${ROLE_LABELS[role] || role}.`);
+        // keep local cache in sync so re-render (e.g. after password modal) is accurate
+        if (permData) {
+          const entry = permData.roles.find(r => r.role === role);
+          if (entry) entry.permissions[key] = allowed;
+        }
+      } catch (e) {
+        checkbox.checked = !allowed; // revert on failure
+        showToast(e.message, 'error');
+      } finally {
+        checkbox.disabled = false;
+      }
+    }
+
+    function openPwModal(userId, username) {
+      document.getElementById('pwUserId').value = userId;
+      document.getElementById('pwNewPassword').value = '';
+      document.getElementById('pwConfirmPassword').value = '';
+      document.getElementById('pwModalTitle').textContent = `Change Password — ${username}`;
+      document.getElementById('pwModal').classList.add('open');
+    }
+
+    function closePwModal() {
+      document.getElementById('pwModal').classList.remove('open');
+    }
+
+    async function savePassword() {
+      const userId = document.getElementById('pwUserId').value;
+      const pw1 = document.getElementById('pwNewPassword').value;
+      const pw2 = document.getElementById('pwConfirmPassword').value;
+
+      if (!pw1 || pw1.length < 6) {
+        showToast('Password must be at least 6 characters.', 'error'); return;
+      }
+      if (pw1 !== pw2) {
+        showToast('Passwords do not match.', 'error'); return;
+      }
+
+      try {
+        await api('POST', `/api/permissions/users/${userId}/password`, { new_password: pw1 });
+        showToast('Password updated.');
+        closePwModal();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    loadPermissions();
+  </script>
+</body>
+</html>

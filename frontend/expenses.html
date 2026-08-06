@@ -65,7 +65,7 @@
         <h2 class="modal-title">Manage Categories</h2>
         <button class="modal-close" onclick="closeCatModal()">×</button>
       </div>
-      <div class="form-group">
+      <div class="form-group" id="addCatRow" style="display:none;">
         <label>New Category Name</label>
         <div style="display:flex;gap:8px;">
           <input type="text" id="newCatName" placeholder="e.g. Utilities" class="mini-input" style="flex:1;"/>
@@ -80,8 +80,8 @@
     <div class="page-header">
       <h1 class="page-title">Expenses</h1>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-outline" onclick="openCatModal()">Categories</button>
-        <button class="btn btn-primary" onclick="openExpModal()">+ Add Expense</button>
+        <button class="btn btn-outline" id="catBtn" onclick="openCatModal()" style="display:none;">Categories</button>
+        <button class="btn btn-primary" id="addExpBtn" onclick="openExpModal()" style="display:none;">+ Add Expense</button>
       </div>
     </div>
 
@@ -165,7 +165,14 @@
       loadExpenses();
     }
 
+    function applyPermissionUI() {
+      document.getElementById('addExpBtn').style.display = hasPerm('expenses.add') ? '' : 'none';
+      document.getElementById('catBtn').style.display = hasPerm('expenses.categories') ? '' : 'none';
+    }
+
     async function init() {
+      await loadMyPermissions();
+      applyPermissionUI();
       await loadCategories();
       await Promise.all([loadExpenses(), loadStats()]);
     }
@@ -253,8 +260,9 @@ const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '')
             <td class="ellipsis-cell" title="${r.description||''}">${r.description || '—'}</td>
             <td class="amount-danger">${formatMoney(r.amount)}</td>
             <td>
-              <button class="btn btn-outline btn-sm" onclick="editExpense(${r.expense_id})">Edit</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteExpense(${r.expense_id})">Del</button>
+              ${hasPerm('expenses.edit') ? `<button class="btn btn-outline btn-sm" onclick="editExpense(${r.expense_id})">Edit</button>` : ''}
+              ${hasPerm('expenses.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteExpense(${r.expense_id})">Del</button>` : ''}
+              ${!hasPerm('expenses.edit') && !hasPerm('expenses.delete') ? '—' : ''}
             </td>
           </tr>`).join('');
         document.getElementById('expTotal').textContent = `Total: ${formatMoney(total)}`;
@@ -355,6 +363,7 @@ const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '')
 
     // Category management
     function openCatModal() {
+      document.getElementById('addCatRow').style.display = hasPerm('expenses.categories') ? '' : 'none';
       renderCatList();
       document.getElementById('catModal').classList.add('open');
     }
@@ -369,7 +378,7 @@ const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '')
         ${categories.map((c,i) => `
           <div class="list-row">
             <span>${c.category_name}</span>
-            <button class="btn btn-danger btn-sm" onclick="deleteCategory(${c.category_id},'${c.category_name}')">Remove</button>
+            ${hasPerm('expenses.categories') ? `<button class="btn btn-danger btn-sm" onclick="deleteCategory(${c.category_id},'${c.category_name}')">Remove</button>` : ''}
           </div>`).join('')}
       </div>`;
     }

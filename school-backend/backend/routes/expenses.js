@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db');
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { authenticate, authorize, can } = require('../middleware/authMiddleware');
 
 router.use(authenticate);
 
@@ -19,7 +19,7 @@ router.get('/categories', async (req, res, next) => {
 });
 
 // POST /api/expenses/categories
-router.post('/categories', authorize('admin'), async (req, res, next) => {
+router.post('/categories', can('expenses.categories'), async (req, res, next) => {
   try {
     const { category_name } = req.body;
     if (!category_name) return res.status(400).json({ error: 'category_name is required.' });
@@ -33,7 +33,7 @@ router.post('/categories', authorize('admin'), async (req, res, next) => {
 });
 
 // DELETE /api/expenses/categories/:id  — admin only
-router.delete('/categories/:id', authorize('admin'), async (req, res, next) => {
+router.delete('/categories/:id', can('expenses.categories'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       'DELETE FROM expense_categories WHERE category_id = $1 RETURNING *',
@@ -102,7 +102,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/expenses
-router.post('/', authorize('admin'), async (req, res, next) => {
+router.post('/', can('expenses.add'), async (req, res, next) => {
   try {
     const { category_id, amount, description, created_at } = req.body;
 
@@ -120,7 +120,7 @@ router.post('/', authorize('admin'), async (req, res, next) => {
 });
 
 // PUT /api/expenses/:id
-router.put('/:id', authorize('admin'), async (req, res, next) => {
+router.put('/:id', can('expenses.edit'), async (req, res, next) => {
   try {
     const { category_id, amount, description, created_at } = req.body;
     if (!amount) return res.status(400).json({ error: 'amount is required.' });
@@ -137,7 +137,7 @@ router.put('/:id', authorize('admin'), async (req, res, next) => {
 });
 
 // DELETE /api/expenses/:id  — admin only
-router.delete('/:id', authorize('admin'), async (req, res, next) => {
+router.delete('/:id', can('expenses.delete'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       'DELETE FROM expenses WHERE expense_id = $1 RETURNING expense_id',

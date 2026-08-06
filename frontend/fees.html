@@ -92,7 +92,7 @@
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">Fee Management</h1>
-      <button class="btn btn-success" onclick="openPayModal()">+ Record Payment</button>
+      <button class="btn btn-success" id="recordPaymentBtn" onclick="openPayModal()" style="display:none;">+ Record Payment</button>
     </div>
 
     <!-- Summary Stats -->
@@ -239,16 +239,15 @@
     let currentHistoryStudentId = null;
     let currentReceiptData = null; // set right before printing/showing a receipt
 
-    // Delete-payment is restricted to principal only (same as the backend's
-    // authorize('principal') on DELETE /api/fees/:payment_id). Admin no
-    // longer has this right, per requirement.
+    // Fee permissions are now driven by ali's Permissions page (fees.add /
+    // fees.edit / fees.delete) instead of being hardcoded to a single role.
+    // These read from the cached permission map (loaded via
+    // loadMyPermissions() in init(), below), so they stay accurate for
+    // whatever ali has toggled for the current user's role.
     const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
-    const canDeleteFees = currentUser.role === 'principal';
-
-    // Editing an existing fee record (fixing a typo in due/paid amounts)
-    // is principal-only, same as delete — matches the backend's
-    // authorize('principal') on PUT /api/fees/:payment_id.
-    const canEditFees = currentUser.role === 'principal';
+    function canDeleteFees() { return hasPerm('fees.delete'); }
+    function canEditFees() { return hasPerm('fees.edit'); }
+    function canAddFees() { return hasPerm('fees.add'); }
 
     // Set when the payment modal is open in "edit existing record" mode
     // (as opposed to "record a new payment"). Editing only touches
@@ -264,7 +263,13 @@
     document.getElementById('dailyDateFilter').value = todayStr;
     document.getElementById('payMonth').value = monthStr;
 
+    function applyPermissionUI() {
+      document.getElementById('recordPaymentBtn').style.display = canAddFees() ? '' : 'none';
+    }
+
     async function init() {
+      await loadMyPermissions();
+      applyPermissionUI();
       await loadStudents();
       await loadMonthlyRecords();
       loadStats();
@@ -367,8 +372,8 @@
           <td style="white-space:nowrap;">
             ${canPay ? `<button class="btn btn-outline btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${due},${paid})">Pay</button>` : ''}
             <button class="btn btn-outline btn-sm" title="Print receipt" onclick="printMonthlyReceipt(${i})">🖨</button>
-            ${canEditFees ? `<button class="btn btn-outline btn-sm" title="Edit record" onclick="editFeeRecord(${r.payment_id},'${r.first_name} ${r.last_name}',${due},${paid})">✏️</button>` : ''}
-            ${canDeleteFees ? `<button class="btn btn-outline btn-sm" title="Delete record" onclick="deleteFeeRecord(${r.payment_id})">🗑</button>` : ''}
+            ${canEditFees() ? `<button class="btn btn-outline btn-sm" title="Edit record" onclick="editFeeRecord(${r.payment_id},'${r.first_name} ${r.last_name}',${due},${paid})">✏️</button>` : ''}
+            ${canDeleteFees() ? `<button class="btn btn-outline btn-sm" title="Delete record" onclick="deleteFeeRecord(${r.payment_id})">🗑</button>` : ''}
           </td>
         </tr>`;
       }).join('');
@@ -513,6 +518,7 @@
     }
 
     function openPayModal() {
+      if (!canAddFees()) return;
       editingPaymentId = null;
       document.getElementById('payStudentSel').value = '';
       document.getElementById('payStudentSearch').value = '';
@@ -544,7 +550,7 @@
     // Saving calls PUT /api/fees/:payment_id, which updates only those
     // two columns and leaves payment_date untouched.
     function editFeeRecord(paymentId, name, due, paid) {
-      if (!canEditFees) return;
+      if (!canEditFees()) return;
       openPayModal();
       editingPaymentId = paymentId;
       document.getElementById('payStudentSearch').value = name;
@@ -630,7 +636,7 @@
     // also enforces this via authorize('admin','principal'), so this is
     // just keeping the button hidden from roles that would get a 403 anyway.
     async function deleteFeeRecord(paymentId) {
-      if (!canDeleteFees) return;
+      if (!canDeleteFees()) return;
       if (!confirm('Delete this fee payment record? This cannot be undone.')) return;
       try {
         await api('DELETE', `/api/fees/${paymentId}`);

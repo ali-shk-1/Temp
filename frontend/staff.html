@@ -75,7 +75,7 @@
         <h2 class="modal-title">Manage Designations</h2>
         <button class="modal-close" onclick="closeDesigModal()">×</button>
       </div>
-      <div class="form-group">
+      <div class="form-group" id="addDesigRow" style="display:none;">
         <label>Add New Designation</label>
         <div style="display:flex;gap:8px;">
           <input type="text" id="newDesigTitle" placeholder="e.g. Teacher" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px;"/>
@@ -90,8 +90,8 @@
     <div class="page-header">
       <h1 class="page-title">Staff</h1>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-outline" onclick="openDesigModal()">Designations</button>
-        <button class="btn btn-primary" onclick="openModal()">+ Add Staff</button>
+        <button class="btn btn-outline" id="desigBtn" onclick="openDesigModal()" style="display:none;">Designations</button>
+        <button class="btn btn-primary" id="addStaffBtn" onclick="openModal()" style="display:none;">+ Add Staff</button>
       </div>
     </div>
 
@@ -132,7 +132,14 @@
     let allStaff = [];
     let designations = [];
 
+    function applyPermissionUI() {
+      document.getElementById('addStaffBtn').style.display = hasPerm('staff.add') ? '' : 'none';
+      document.getElementById('desigBtn').style.display = hasPerm('staff.designations') ? '' : 'none';
+    }
+
     async function loadAll() {
+      await loadMyPermissions();
+      applyPermissionUI();
       await loadDesignations();
       await loadStaff();
     }
@@ -177,8 +184,9 @@
           <td>${s.phone_no || '—'}</td>
           <td>${formatMoney(s.salary)}</td>
           <td>
-            <button class="btn btn-outline btn-sm" onclick="editStaff(${s.staff_id})">Edit</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteStaff(${s.staff_id})">Delete</button>
+            ${hasPerm('staff.edit') ? `<button class="btn btn-outline btn-sm" onclick="editStaff(${s.staff_id})">Edit</button>` : ''}
+            ${hasPerm('staff.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteStaff(${s.staff_id})">Delete</button>` : ''}
+            ${!hasPerm('staff.edit') && !hasPerm('staff.delete') ? '—' : ''}
           </td>
         </tr>`).join('');
     }
@@ -250,6 +258,7 @@
 
     // Designations management
     function openDesigModal() {
+      document.getElementById('addDesigRow').style.display = hasPerm('staff.designations') ? '' : 'none';
       renderDesigList();
       document.getElementById('desigModalOverlay').classList.add('open');
     }
@@ -264,7 +273,7 @@
         ${designations.map((d,i) => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;${i?'border-top:1px solid #eee':''}">
             <span>${d.title}</span>
-            <button class="btn btn-danger btn-sm" onclick="deleteDesig(${d.id},'${d.title}')">Remove</button>
+            ${hasPerm('staff.designations') ? `<button class="btn btn-danger btn-sm" onclick="deleteDesig(${d.id},'${d.title}')">Remove</button>` : ''}
           </div>`).join('')}
       </div>`;
     }

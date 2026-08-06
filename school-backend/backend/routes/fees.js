@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db');
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { authenticate, authorize, can } = require('../middleware/authMiddleware');
 const { sendMail } = require('../utils/mailer');
 
 router.use(authenticate);
@@ -18,7 +18,7 @@ function normalizeMonthInput(value) {
   return raw;
 }
 
-router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
+router.post('/', can('fees.add'), async (req, res, next) => {
   try {
     const { student_id, academic_month, amount_due, amount_paid } = req.body;
     if (!student_id || !academic_month || amount_due == null) {
@@ -321,7 +321,7 @@ router.get('/daily', async (req, res, next) => {
 
 // Editing an existing record is allowed for admin and principal.
 // In this system there are only two roles: admin and principal.
-router.put('/:payment_id', authorize('admin', 'principal'), async (req, res, next) => {
+router.put('/:payment_id', can('fees.edit'), async (req, res, next) => {
   try {
     const { amount_paid, amount_due } = req.body;
     if (amount_paid == null && amount_due == null) {
@@ -350,7 +350,7 @@ router.put('/:payment_id', authorize('admin', 'principal'), async (req, res, nex
   } catch (err) { next(err); }
 });
 
-router.delete('/:payment_id', authorize('admin', 'principal'), async (req, res, next) => {
+router.delete('/:payment_id', can('fees.delete'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       'DELETE FROM fee_payments WHERE payment_id = $1 RETURNING payment_id',

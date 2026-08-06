@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../db');
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { authenticate, authorize, can } = require('../middleware/authMiddleware');
 
 router.use(authenticate);
 
@@ -17,7 +17,7 @@ router.get('/designations', async (req, res, next) => {
 });
 
 // POST /api/staff/designations
-router.post('/designations', authorize('admin'), async (req, res, next) => {
+router.post('/designations', can('staff.designations'), async (req, res, next) => {
   try {
     const { title } = req.body;
     if (!title) return res.status(400).json({ error: 'title is required.' });
@@ -31,7 +31,7 @@ router.post('/designations', authorize('admin'), async (req, res, next) => {
 });
 
 // DELETE /api/staff/designations/:id
-router.delete('/designations/:id', authorize('admin'), async (req, res, next) => {
+router.delete('/designations/:id', can('staff.designations'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       'DELETE FROM designations WHERE id = $1 RETURNING *',
@@ -90,7 +90,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/staff
-router.post('/', authorize('admin'), async (req, res, next) => {
+router.post('/', can('staff.add'), async (req, res, next) => {
   try {
     const { name, cnic, phone_no, salary, designation_id } = req.body;
 
@@ -109,7 +109,7 @@ router.post('/', authorize('admin'), async (req, res, next) => {
 });
 
 // PUT /api/staff/:id
-router.put('/:id', authorize('admin'), async (req, res, next) => {
+router.put('/:id', can('staff.edit'), async (req, res, next) => {
   try {
     const { name, cnic, phone_no, salary, designation_id } = req.body;
 
@@ -130,7 +130,7 @@ router.put('/:id', authorize('admin'), async (req, res, next) => {
 });
 
 // DELETE /api/staff/:id  — admin only
-router.delete('/:id', authorize('admin'), async (req, res, next) => {
+router.delete('/:id', can('staff.delete'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       'DELETE FROM staff WHERE staff_id = $1 RETURNING staff_id, name',

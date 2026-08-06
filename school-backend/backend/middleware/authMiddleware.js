@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const pool = require('../db');
+const { isAli, defaultsForRole } = require('../permissions');
 
 /**
  * Verifies JWT token on every protected route.
@@ -42,4 +44,45 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { authenticate, authorize };
+/**
+ * Granular, DB-backed permission check.
+ * Usage: can('students.add')  |  can('fees.delete')
+ *
+ * - 'ali' always passes, unconditionally, for every permission key.
+ * - For admin/principal/viewer, looks up role_permissions; if no row
+ *   exists yet (e.g. migration 008 hasn't been run), falls back to the
+ *   hardcoded defaults in permissions.js so nothing breaks.
+ */
+const can = (permissionKey) => {
+  return async (req, res, next) => {
+    try {
+      const role = req.user && req.user.role ? String(req.user.role).toLowerCase() : null;
+      if (!role) {
+        return res.status(403).json({ error: 'Access denied.' });
+      }
+      if (isAli(role)) return next();
+
+      const { rows } = await pool.query(
+        'SELECT allowed FROM role_permissions WHERE role_name = $1 AND permission_key = $2',
+        [role, permissionKey]
+      );
+
+      let allowed;
+      if (rows.length > 0) {
+        allowed = rows[0].allowed;
+      } else {
+        const defaults = defaultsForRole(role);
+        allowed = !!defaults[permissionKey];
+      }
+
+      if (!allowed) {
+        return res.status(403).json({ error: `Access denied. You don't have permission to do this (${permissionKey}).` });
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+};
+
+module.exports = { authenticate, authorize, can };

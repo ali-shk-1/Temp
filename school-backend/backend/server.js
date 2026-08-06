@@ -10,6 +10,7 @@ const staffRoutes     = require('./routes/staff');
 const feeRoutes       = require('./routes/fees');
 const expenseRoutes   = require('./routes/expenses');
 const dashboardRoutes = require('./routes/dashboard');
+const permissionRoutes = require('./routes/permissions');
 const errorHandler    = require('./middleware/errorHandler');
 const pool            = require('./db');
 
@@ -50,6 +51,7 @@ app.use('/api/staff',     staffRoutes);
 app.use('/api/fees',      feeRoutes);
 app.use('/api/expenses',  expenseRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/permissions', permissionRoutes);
 
 /* ── 404 Handler ───────────────────────── */
 app.use((req, res) => {

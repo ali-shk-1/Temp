@@ -3,7 +3,7 @@ const fs     = require('fs');
 const path   = require('path');
 const multer = require('multer');
 const pool   = require('../db');
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { authenticate, authorize, can } = require('../middleware/authMiddleware');
 
 const allowedClasses = new Set([
   'playgroup', 'nursery', 'prep',
@@ -47,7 +47,7 @@ const upload = multer({
 // All student routes require authentication
 router.use(authenticate);
 
-router.post('/upload-photo', authorize('admin', 'principal'), upload.single('photo'), async (req, res, next) => {
+router.post('/upload-photo', can('students.add'), upload.single('photo'), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Photo file is required.' });
@@ -112,7 +112,7 @@ router.get('/left', async (req, res, next) => {
   }
 });
 
-router.post('/:id/leave', authorize('admin', 'principal'), async (req, res, next) => {
+router.post('/:id/leave', can('students.leave'), async (req, res, next) => {
   const client = await pool.connect();
   try {
     const { left_reason } = req.body;
@@ -185,7 +185,7 @@ router.get('/meta/classes', async (req, res, next) => {
 /* ─────────────────────────────────────────
    POST /api/students
 ───────────────────────────────────────── */
-router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
+router.post('/', can('students.add'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, email, photo_url, address,
@@ -245,7 +245,7 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
 /* ─────────────────────────────────────────
    PUT /api/students/:id
 ───────────────────────────────────────── */
-router.put('/:id', authorize('admin', 'principal'), async (req, res, next) => {
+router.put('/:id', can('students.edit'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, email, photo_url, address,
@@ -300,7 +300,7 @@ router.put('/:id', authorize('admin', 'principal'), async (req, res, next) => {
    FIX: deletes fee_payments first inside a transaction so the FK
    constraint on fee_payments.student_id no longer blocks deletion.
 ───────────────────────────────────────── */
-router.delete('/:id', authorize('principal'), async (req, res, next) => {
+router.delete('/:id', can('students.delete'), async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
