@@ -172,14 +172,14 @@
           <label style="font-size:12px;color:#666;">Month:</label>
           <input type="month" id="monthlyDefaulterMonthFilter" onchange="loadMonthlyDefaulters()"/>
           <input type="text" id="monthlyDefaulterSearch" placeholder="Search student…" oninput="filterMonthlyDefaulters()" style="padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;flex:1;min-width:180px;"/>
-          <span id="monthlyDefaultersCountLabel" style="font-size:12px;color:#888;margin-left:auto;"></span>
+          <span id="monthlyDefaultersCountLabel" style="font-size:14px;font-weight:600;color:#555;margin-left:auto;"></span>
         </div>
       </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Roll</th><th>Student</th><th>Class</th><th>Section</th><th>Due</th><th>Paid</th><th>Balance</th><th>Contact</th></tr></thead>
-            <tbody id="monthlyDefaultersBody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+            <thead><tr><th>Month</th><th>Roll</th><th>Student</th><th>Class</th><th>Section</th><th>Due</th><th>Paid</th><th>Balance</th><th>Contact</th></tr></thead>
+            <tbody id="monthlyDefaultersBody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -424,32 +424,74 @@
     async function loadMonthlyDefaulters() {
       const tbody = document.getElementById('monthlyDefaultersBody');
       const countLabel = document.getElementById('monthlyDefaultersCountLabel');
-      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
       countLabel.textContent = '';
       const month = document.getElementById('monthlyDefaulterMonthFilter').value;
       try {
         const raw = await api('GET', `/api/fees/monthly-defaulters?month=${month + '-01'}`);
+        // Flat list (one row per student per unpaid month) — used for
+        // search/filter. `raw.months` groups the same rows by month so
+        // we can render a per-month subtotal that sums to this total.
         const data = normalizeList(raw, ['defaulters', 'data']);
         currentMonthlyDefaultersList = data;
-        const overdueCount = data.reduce((sum, r) => sum + (+r.overdue_months || 0), 0);
-        countLabel.textContent = `${overdueCount} overdue month${overdueCount !== 1 ? 's' : ''}`;
+        const totalCount = data.length;
+        countLabel.textContent = `${totalCount} defaulter month${totalCount !== 1 ? 's' : ''} total`;
         if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="8" class="empty">No monthly defaulters. 🎉</td></tr>'; return;
+          tbody.innerHTML = '<tr><td colspan="9" class="empty">No monthly defaulters. 🎉</td></tr>'; return;
         }
-        tbody.innerHTML = data.map(r => `
+        renderMonthlyDefaultersGrouped(raw.months || groupDefaultersByMonth(data));
+      } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">Failed to load.</td></tr>';
+        countLabel.textContent = '';
+      }
+    }
+
+    // Fallback grouping in case an older cached response shape sneaks in
+    // (e.g. mid-deploy) — groups the flat defaulter rows by academic_month
+    // client-side so rendering never breaks even without raw.months.
+    function groupDefaultersByMonth(data) {
+      const groups = {};
+      data.forEach(r => {
+        const key = String(r.academic_month || '').slice(0, 10);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+      return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map(key => ({
+        academic_month: key,
+        count: groups[key].length,
+        defaulters: groups[key],
+      }));
+    }
+
+    function monthLabel(dateStr) {
+      if (!dateStr) return '—';
+      return new Date(dateStr).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    }
+
+    function renderMonthlyDefaultersGrouped(months) {
+      const tbody = document.getElementById('monthlyDefaultersBody');
+      if (!months.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">No monthly defaulters. 🎉</td></tr>';
+        return;
+      }
+      tbody.innerHTML = months.map(group => `
+        <tr style="background:#f7f7f7;">
+          <td colspan="9" style="font-weight:600;padding:8px 10px;">
+            ${monthLabel(group.academic_month)} — ${group.count} defaulter${group.count !== 1 ? 's' : ''}
+          </td>
+        </tr>
+        ${group.defaulters.map(r => `
           <tr>
+            <td>${monthLabel(r.academic_month)}</td>
             <td>${r.roll_no}</td>
             <td>${r.first_name} ${r.last_name}</td>
             <td>${r.class}</td><td>${r.section}</td>
-            <td class="fee-unpaid">${formatMoney(r.total_due)}</td>
-            <td class="fee-paid">${formatMoney(r.total_paid)}</td>
+            <td class="fee-unpaid">${formatMoney(r.amount_due)}</td>
+            <td class="fee-paid">${formatMoney(r.amount_paid)}</td>
             <td class="fee-unpaid">${formatMoney(r.balance)}</td>
             <td>${r.contact_1 || '—'}</td>
-          </tr>`).join('');
-      } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load.</td></tr>';
-        countLabel.textContent = '';
-      }
+          </tr>`).join('')}
+      `).join('');
     }
 
     function filterMonthlyDefaulters() {
@@ -460,19 +502,10 @@
         String(r.roll_no || '').toLowerCase().includes(q)
       );
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty">No matching students.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">No matching students.</td></tr>';
         return;
       }
-      tbody.innerHTML = filtered.map(r => `
-        <tr>
-          <td>${r.roll_no}</td>
-          <td>${r.first_name} ${r.last_name}</td>
-          <td>${r.class}</td><td>${r.section}</td>
-          <td class="fee-unpaid">${formatMoney(r.total_due)}</td>
-          <td class="fee-paid">${formatMoney(r.total_paid)}</td>
-          <td class="fee-unpaid">${formatMoney(r.balance)}</td>
-          <td>${r.contact_1 || '—'}</td>
-        </tr>`).join('');
+      renderMonthlyDefaultersGrouped(groupDefaultersByMonth(filtered));
     }
 
     async function loadStudentHistory() {

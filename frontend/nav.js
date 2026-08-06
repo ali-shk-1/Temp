@@ -110,7 +110,7 @@ function renderNav(activePage) {
       <a class="brand" href="dashboard.html">🏫 School Mgmt</a>
       <nav>${links}</nav>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span style="color:#aaa;font-size:12px;">${user.username || ''}${user.role ? ' · ' + user.role : ''}</span>
+        <span style="color:#ccc;font-size:14px;">${user.username || ''}${user.role ? ' · ' + user.role : ''}</span>
         <button class="logout-btn" onclick="logout()">Logout</button>
       </div>
     </nav>

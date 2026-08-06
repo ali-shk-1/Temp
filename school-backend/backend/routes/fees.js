@@ -224,6 +224,11 @@ router.get('/monthly-defaulters', async (req, res, next) => {
          WHERE DATE_TRUNC('month', fp.academic_month) <= DATE_TRUNC('month', $1::DATE)
          GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month)
        )
+       -- One row PER STUDENT PER UNPAID MONTH (not collapsed/cumulative).
+       -- This mirrors exactly what the dashboard's total_overdue_months
+       -- already counts (one instance per defaulting student-month), so
+       -- grouping these rows by academic_month and counting them per
+       -- month will always sum to that same dashboard total.
        SELECT sm.student_id,
               sm.roll_no,
               sm.first_name,
@@ -234,29 +239,44 @@ router.get('/monthly-defaulters', async (req, res, next) => {
               sm.contact_1,
               sm.contact_2,
               sm.address,
-              COUNT(*) FILTER (
-                WHERE pa.amount_due IS NULL
-                   OR COALESCE(pa.amount_paid, 0) < COALESCE(pa.amount_due, 0)
-              ) AS overdue_months,
-              SUM(COALESCE(pa.amount_due, 0))  AS total_due,
-              SUM(COALESCE(pa.amount_paid, 0)) AS total_paid,
-              SUM(COALESCE(pa.amount_due, 0) - COALESCE(pa.amount_paid, 0)) AS balance
+              sm.academic_month,
+              COALESCE(pa.amount_due, 0)  AS amount_due,
+              COALESCE(pa.amount_paid, 0) AS amount_paid,
+              (COALESCE(pa.amount_due, 0) - COALESCE(pa.amount_paid, 0)) AS balance
        FROM student_months sm
        LEFT JOIN payment_agg pa
          ON pa.student_id = sm.student_id
          AND pa.academic_month = sm.academic_month
-       GROUP BY sm.student_id, sm.roll_no, sm.first_name, sm.last_name,
-                sm.class, sm.section, sm.father_name, sm.contact_1,
-                sm.contact_2, sm.address, sm.admission_date
-       HAVING COUNT(*) FILTER (
-                WHERE pa.amount_due IS NULL
-                   OR COALESCE(pa.amount_paid, 0) < COALESCE(pa.amount_due, 0)
-              ) > 0
-       ORDER BY overdue_months DESC, sm.class, sm.section, sm.roll_no`,
+       WHERE pa.amount_due IS NULL
+          OR COALESCE(pa.amount_paid, 0) < COALESCE(pa.amount_due, 0)
+       ORDER BY sm.academic_month DESC, sm.class, sm.section, sm.roll_no`,
       [month]
     );
-    const totalOverdueMonths = rows.reduce((sum, row) => sum + Number(row.overdue_months || 0), 0);
-    res.json({ count: rows.length, month, total_overdue_months: totalOverdueMonths, defaulters: rows });
+
+    // Group the flat per-month rows into { academic_month, defaulters: [...] }
+    // buckets so the frontend can show each month's own count, while the
+    // flat `defaulters` array (all rows across all months) is also
+    // returned so total_overdue_months / count keep meaning "total
+    // defaulter-month instances", unchanged from before.
+    const monthGroups = {};
+    rows.forEach(row => {
+      const key = row.academic_month.toISOString().slice(0, 10);
+      if (!monthGroups[key]) monthGroups[key] = [];
+      monthGroups[key].push(row);
+    });
+    const months = Object.keys(monthGroups).sort((a, b) => b.localeCompare(a)).map(key => ({
+      academic_month: key,
+      count: monthGroups[key].length,
+      defaulters: monthGroups[key],
+    }));
+
+    res.json({
+      count: rows.length,
+      month,
+      total_overdue_months: rows.length,
+      defaulters: rows,
+      months,
+    });
   } catch (err) { next(err); }
 });
 
