@@ -248,7 +248,7 @@ async function loadStats() {
       const params = new URLSearchParams();
 if (from) params.set('from', from);
 if (to)   params.set('to', to);
-if (cat)  params.set('category', cat);
+if (cat)  params.set('category_id', cat);
 const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '');
 
       try {

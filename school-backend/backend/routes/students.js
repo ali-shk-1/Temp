@@ -289,18 +289,9 @@ router.post('/', can('students.add'), async (req, res, next) => {
     if (!allowedClasses.has(normalizedClass)) {
       return res.status(400).json({ error: 'Class must be one of playgroup, nursery, prep, or 1 through 10.' });
     }
-    let rollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
-    if (rollNo != null && (!Number.isInteger(rollNo) || rollNo <= 0)) {
+    let explicitRollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
+    if (explicitRollNo != null && (!Number.isInteger(explicitRollNo) || explicitRollNo <= 0)) {
       return res.status(400).json({ error: 'Roll No must be a positive integer if provided.' });
-    }
-    if (rollNo == null) {
-      const classStart = getClassRollStart(normalizedClass);
-      const { rows: maxRow } = await pool.query(
-        'SELECT MAX(roll_no) AS max_roll FROM students WHERE class = $1',
-        [normalizedClass]
-      );
-      const maxRoll = maxRow[0]?.max_roll;
-      rollNo = (maxRoll != null && maxRoll >= classStart) ? maxRoll + 1 : classStart;
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address.' });
@@ -313,20 +304,58 @@ router.post('/', can('students.add'), async (req, res, next) => {
       return res.status(400).json({ error: 'fee_start_month must be in YYYY-MM format.' });
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO students
-         (roll_no, section, class, first_name, last_name,
-          father_name, contact_1, contact_2, email, photo_url, address,
-          admission_date, fee_start_month)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-       RETURNING *`,
-      [rollNo, section, normalizedClass, first_name, last_name,
-       father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
-       admission_date || new Date().toISOString().slice(0, 10), normalizedFeeStart || null]
-    );
+    // Roll numbers are assigned per-class. Since (class, roll_no) is now
+    // enforced unique at the DB level, two concurrent inserts into the same
+    // class can no longer silently collide — instead one of them will hit a
+    // unique-violation (Postgres error code 23505), which we catch and
+    // retry with a freshly recomputed roll number.
+    const MAX_ATTEMPTS = 5;
+    let lastErr;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      let rollNo = explicitRollNo;
+      if (rollNo == null) {
+        const classStart = getClassRollStart(normalizedClass);
+        const { rows: maxRow } = await pool.query(
+          'SELECT MAX(roll_no) AS max_roll FROM students WHERE class = $1',
+          [normalizedClass]
+        );
+        const maxRoll = maxRow[0]?.max_roll;
+        rollNo = (maxRoll != null && maxRoll >= classStart) ? maxRoll + 1 : classStart;
+      }
 
-    res.status(201).json({ message: 'Student added.', student: rows[0] });
-    broadcast('students.changed', { action: 'added', student_id: rows[0].student_id });
+      try {
+        const { rows } = await pool.query(
+          `INSERT INTO students
+             (roll_no, section, class, first_name, last_name,
+              father_name, contact_1, contact_2, email, photo_url, address,
+              admission_date, fee_start_month)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           RETURNING *`,
+          [rollNo, section, normalizedClass, first_name, last_name,
+           father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
+           admission_date || new Date().toISOString().slice(0, 10), normalizedFeeStart || null]
+        );
+
+        res.status(201).json({ message: 'Student added.', student: rows[0] });
+        broadcast('students.changed', { action: 'added', student_id: rows[0].student_id });
+        return;
+      } catch (err) {
+        const isRollNoCollision = err.code === '23505' &&
+          (err.constraint === 'students_class_roll_no_unique' || /roll_no/i.test(err.detail || ''));
+        // Only auto-retry when we picked the roll number ourselves; if the
+        // caller supplied an explicit roll_no, a collision is a real
+        // conflict that should be reported, not silently reassigned.
+        if (isRollNoCollision && explicitRollNo == null && attempt < MAX_ATTEMPTS - 1) {
+          lastErr = err;
+          continue;
+        }
+        if (isRollNoCollision && explicitRollNo != null) {
+          return res.status(409).json({ error: 'That Roll No is already in use for this class.' });
+        }
+        throw err;
+      }
+    }
+    throw lastErr;
   } catch (err) {
     next(err);
   }
@@ -365,18 +394,27 @@ router.put('/:id', can('students.edit'), async (req, res, next) => {
       return res.status(400).json({ error: 'fee_start_month must be in YYYY-MM format.' });
     }
 
-    const { rows } = await pool.query(
-      `UPDATE students SET
-         roll_no=COALESCE($1, roll_no), section=$2, class=$3, first_name=$4, last_name=$5,
-         father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
-         admission_date=COALESCE($12, admission_date),
-         fee_start_month=COALESCE($13, fee_start_month)
-       WHERE student_id=$14
-       RETURNING *`,
-      [rollNo, section, normalizedClass, first_name, last_name,
-       father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
-       admission_date || null, normalizedFeeStart || null, req.params.id]
-    );
+    let rows;
+    try {
+      ({ rows } = await pool.query(
+        `UPDATE students SET
+           roll_no=COALESCE($1, roll_no), section=$2, class=$3, first_name=$4, last_name=$5,
+           father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
+           admission_date=COALESCE($12, admission_date),
+           fee_start_month=COALESCE($13, fee_start_month)
+         WHERE student_id=$14
+         RETURNING *`,
+        [rollNo, section, normalizedClass, first_name, last_name,
+         father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
+         admission_date || null, normalizedFeeStart || null, req.params.id]
+      ));
+    } catch (err) {
+      if (err.code === '23505' &&
+          (err.constraint === 'students_class_roll_no_unique' || /roll_no/i.test(err.detail || ''))) {
+        return res.status(409).json({ error: 'That Roll No is already in use for this class.' });
+      }
+      throw err;
+    }
 
     if (rows.length === 0) return res.status(404).json({ error: 'Student not found.' });
     res.json({ message: 'Student updated.', student: rows[0] });

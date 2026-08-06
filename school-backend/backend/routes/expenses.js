@@ -80,7 +80,7 @@ router.get('/', async (req, res, next) => {
         vals.push(from);
       }
       if (to) {
-        query += ` AND e.created_at <= $${idx++}`;
+        query += ` AND e.created_at < ($${idx++}::DATE + INTERVAL '1 day')`;
         vals.push(to);
       }
     }
@@ -174,7 +174,7 @@ router.get('/reports/by-category', async (req, res, next) => {
       dateFilter = `AND DATE_TRUNC('month', e.created_at) = DATE_TRUNC('month', $${idx++}::DATE)`;
       vals.push(`${month}-01`);
     } else if (from && to) {
-      dateFilter = `AND e.created_at BETWEEN $${idx++} AND $${idx++}`;
+      dateFilter = `AND e.created_at >= $${idx++} AND e.created_at < ($${idx++}::DATE + INTERVAL '1 day')`;
       vals.push(from, to);
     }
 
