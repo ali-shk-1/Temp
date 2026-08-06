@@ -101,6 +101,14 @@
 
     let allLeftStaff = [];
 
+    // Called by refreshMyPermissions() (nav.js) when a 'permissions.changed'
+    // event arrives, so Edit/Delete buttons here update live like they
+    // already do on staff.html/students.html/fees.html/expenses.html —
+    // without this, the buttons would stay stale until a manual reload.
+    function applyPermissionUI() {
+      renderTable();
+    }
+
     async function loadLeftStaff() {
       const tbody = document.getElementById('leftStaffBody');
       tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';

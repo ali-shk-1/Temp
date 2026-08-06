@@ -20,6 +20,86 @@
 </head>
 <body>
   <div id="toast" class="toast"></div>
+
+  <!-- Edit Left Student Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Edit Left Student Record</h2>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <input type="hidden" id="leftStudentId"/>
+        <div class="form-row">
+          <div class="form-group">
+            <label>First Name *</label>
+            <input type="text" id="lsFirstName" required/>
+          </div>
+          <div class="form-group">
+            <label>Last Name *</label>
+            <input type="text" id="lsLastName" required/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Roll No</label>
+            <input type="number" id="lsRollNo" min="1"/>
+          </div>
+          <div class="form-group">
+            <label>Class</label>
+            <input type="text" id="lsClass"/>
+          </div>
+          <div class="form-group">
+            <label>Section</label>
+            <input type="text" id="lsSection"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Father's Name</label>
+            <input type="text" id="lsFatherName"/>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="lsEmail"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Contact 1</label>
+            <input type="text" id="lsContact1"/>
+          </div>
+          <div class="form-group">
+            <label>Contact 2</label>
+            <input type="text" id="lsContact2"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Address</label>
+          <input type="text" id="lsAddress"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Admission Date</label>
+            <input type="date" id="lsAdmissionDate"/>
+          </div>
+          <div class="form-group">
+            <label>Left Date</label>
+            <input type="date" id="lsLeftDate"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <input type="text" id="lsReason" placeholder="Reason for leaving"/>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveLeftStudent()">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">Left Students</h1>
@@ -30,10 +110,10 @@
           <thead>
             <tr>
               <th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
-              <th>Admission</th><th>Left Date</th><th>Reason</th>
+              <th>Admission</th><th>Left Date</th><th>Reason</th><th>Actions</th>
             </tr>
           </thead>
-          <tbody id="leftStudentsBody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+          <tbody id="leftStudentsBody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -44,34 +124,120 @@
   <script>
     checkAuth();
     renderNav('left-students');
+
+    let allLeftStudents = [];
+
+    // Called by refreshMyPermissions() (nav.js) when a 'permissions.changed'
+    // event arrives, so Edit/Delete buttons here update live like they
+    // already do on staff.html/students.html/fees.html/expenses.html —
+    // without this, the buttons would stay stale until a manual reload.
+    function applyPermissionUI() {
+      renderTable();
+    }
+
     async function loadLeftStudents() {
       const tbody = document.getElementById('leftStudentsBody');
-      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
       try {
         const res = await api('GET', '/api/students/left');
-        const data = normalizeList(res, ['former_students', 'students', 'data']);
-        if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="7" class="empty">No left students found.</td></tr>';
-          return;
-        }
-        tbody.innerHTML = data.map(s => `
-          <tr>
-            <td>${s.roll_no || '—'}</td>
-            <td>${s.first_name} ${s.last_name}</td>
-            <td>${s.class || '—'}</td>
-            <td>${s.section || '—'}</td>
-            <td>${formatDate(s.admission_date)}</td>
-            <td>${formatDate(s.left_date)}</td>
-            <td>${s.left_reason || '—'}</td>
-          </tr>`).join('');
+        allLeftStudents = normalizeList(res, ['former_students', 'students', 'data']);
+        renderTable();
       } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load left students.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load left students.</td></tr>';
       }
     }
-    loadLeftStudents();
-    connectLiveUpdates({
-      'left-students.changed': () => loadLeftStudents(),
-    });
+
+    function renderTable() {
+      const tbody = document.getElementById('leftStudentsBody');
+      if (!allLeftStudents.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">No left students found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = allLeftStudents.map(s => `
+        <tr>
+          <td>${s.roll_no || '—'}</td>
+          <td>${s.first_name} ${s.last_name}</td>
+          <td>${s.class || '—'}</td>
+          <td>${s.section || '—'}</td>
+          <td>${formatDate(s.admission_date)}</td>
+          <td>${formatDate(s.left_date)}</td>
+          <td>${s.left_reason || '—'}</td>
+          <td>
+            ${hasPerm('students.edit') ? `<button class="btn btn-outline btn-sm" onclick="editLeftStudent(${s.left_student_id})">Edit</button>` : ''}
+            ${hasPerm('students.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteLeftStudent(${s.left_student_id})">Delete</button>` : ''}
+            ${!hasPerm('students.edit') && !hasPerm('students.delete') ? '—' : ''}
+          </td>
+        </tr>`).join('');
+    }
+
+    function editLeftStudent(id) {
+      const s = allLeftStudents.find(x => x.left_student_id === id);
+      if (!s) return;
+      document.getElementById('leftStudentId').value = s.left_student_id;
+      document.getElementById('lsFirstName').value = s.first_name || '';
+      document.getElementById('lsLastName').value = s.last_name || '';
+      document.getElementById('lsRollNo').value = s.roll_no || '';
+      document.getElementById('lsClass').value = s.class || '';
+      document.getElementById('lsSection').value = s.section || '';
+      document.getElementById('lsFatherName').value = s.father_name || '';
+      document.getElementById('lsEmail').value = s.email || '';
+      document.getElementById('lsContact1').value = s.contact_1 || '';
+      document.getElementById('lsContact2').value = s.contact_2 || '';
+      document.getElementById('lsAddress').value = s.address || '';
+      document.getElementById('lsAdmissionDate').value = s.admission_date ? s.admission_date.slice(0, 10) : '';
+      document.getElementById('lsLeftDate').value = s.left_date ? s.left_date.slice(0, 10) : '';
+      document.getElementById('lsReason').value = s.left_reason || '';
+      document.getElementById('modalOverlay').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('open');
+    }
+
+    async function saveLeftStudent() {
+      const id = document.getElementById('leftStudentId').value;
+      const body = {
+        first_name: document.getElementById('lsFirstName').value.trim(),
+        last_name: document.getElementById('lsLastName').value.trim(),
+        roll_no: document.getElementById('lsRollNo').value || null,
+        class: document.getElementById('lsClass').value.trim(),
+        section: document.getElementById('lsSection').value.trim(),
+        father_name: document.getElementById('lsFatherName').value.trim(),
+        email: document.getElementById('lsEmail').value.trim(),
+        contact_1: document.getElementById('lsContact1').value.trim(),
+        contact_2: document.getElementById('lsContact2').value.trim(),
+        address: document.getElementById('lsAddress').value.trim(),
+        admission_date: document.getElementById('lsAdmissionDate').value || null,
+        left_date: document.getElementById('lsLeftDate').value || null,
+        left_reason: document.getElementById('lsReason').value.trim(),
+      };
+      if (!body.first_name || !body.last_name) { showToast('First and last name are required.', 'error'); return; }
+      try {
+        await api('PUT', `/api/students/left/${id}`, body);
+        showToast('Left student record updated.');
+        closeModal();
+        loadLeftStudents();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function deleteLeftStudent(id) {
+      const s = allLeftStudents.find(x => x.left_student_id === id);
+      if (!confirm(`Delete left-student record for "${s ? s.first_name + ' ' + s.last_name : 'this student'}"? This cannot be undone.`)) return;
+      try {
+        await api('DELETE', `/api/students/left/${id}`);
+        showToast('Left student record deleted.');
+        loadLeftStudents();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    (async function init() {
+      await loadMyPermissions();
+      await loadLeftStudents();
+      connectLiveUpdates({
+        'left-students.changed': () => loadLeftStudents(),
+        'permissions.changed': () => refreshMyPermissions(),
+      });
+    })();
   </script>
 </body>
 </html>

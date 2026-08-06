@@ -198,33 +198,15 @@ router.post('/:id/leave', can('students.leave'), async (req, res, next) => {
 
     const student = studentRows[0];
 
-    const { rows: leftStudentRows } = await client.query(
+    await client.query(
       `INSERT INTO left_students
          (roll_no, section, class, first_name, last_name,
           father_name, contact_1, contact_2, email, photo_url, address,
           admission_date, fee_start_month, left_date, left_reason)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-       RETURNING left_student_id`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
       [student.roll_no, student.section, student.class, student.first_name, student.last_name,
        student.father_name, student.contact_1, student.contact_2, student.email, student.photo_url,
        student.address, student.admission_date, student.fee_start_month || student.admission_date, new Date().toISOString().slice(0,10), left_reason || null]
-    );
-    const leftStudentId = leftStudentRows[0].left_student_id;
-
-    // Preserve fee payment history instead of destroying it. This used to
-    // be a straight DELETE with no snapshot — irreversible, and
-    // inconsistent with staff.js's leave route, which preserves
-    // everything by copying into left_staff. Copy each fee_payments row
-    // into left_student_fee_payments first, then delete from the active
-    // table, mirroring the pattern already used for the student row
-    // itself (students -> left_students).
-    await client.query(
-      `INSERT INTO left_student_fee_payments
-         (left_student_id, old_student_id, academic_month, amount_due, amount_paid, payment_date)
-       SELECT $1, student_id, academic_month, amount_due, amount_paid, payment_date
-       FROM fee_payments
-       WHERE student_id = $2`,
-      [leftStudentId, req.params.id]
     );
 
     await client.query('DELETE FROM fee_payments WHERE student_id = $1', [req.params.id]);

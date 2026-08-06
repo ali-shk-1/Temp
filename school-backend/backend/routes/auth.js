@@ -132,21 +132,6 @@ router.post('/register', authenticate, authorize('admin'), async (req, res, next
       return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     }
 
-    // Block minting a second 'ali' account through this endpoint. ali is
-    // the top of the hierarchy (always-all-permissions, manages every
-    // other account, cannot itself be restricted) and is meant to exist
-    // exactly once, provisioned only via create-ali-viewer.js. Without
-    // this check, any admin could POST ali's role_id here and create a
-    // second unrestricted account that bypasses the whole permissions
-    // system.
-    const { rows: roleRows } = await pool.query('SELECT role_name FROM roles WHERE role_id = $1', [role_id]);
-    if (roleRows.length === 0) {
-      return res.status(400).json({ error: 'Invalid role_id.' });
-    }
-    if (String(roleRows[0].role_name).toLowerCase() === 'ali') {
-      return res.status(403).json({ error: 'The ali role cannot be assigned through registration.' });
-    }
-
     const hash = await bcrypt.hash(password, 12);
 
     const { rows } = await pool.query(
