@@ -79,6 +79,15 @@ function showToast(msg, type = 'success') {
 
 function formatDate(d) {
   if (!d) return '—';
+  // Pure date strings (YYYY-MM-DD, optionally with a trailing T00:00:00.000Z)
+  // must NOT be parsed with `new Date()` + toLocaleDateString, because that
+  // treats them as UTC midnight and can roll back a day in timezones behind UTC.
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const [, y, mo, day] = m;
+    return `${day}/${mo}/${y}`;
+  }
+  // Fallback for genuine timestamps (has time info beyond a plain date)
   return new Date(d).toLocaleDateString('en-GB');
 }
 

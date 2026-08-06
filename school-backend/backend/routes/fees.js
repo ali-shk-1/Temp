@@ -68,7 +68,13 @@ router.post('/', can('fees.add'), async (req, res, next) => {
 
     const payment = receipt.rows[0];
     if (payment && payment.email && Number(payment.amount_paid) > 0) {
-      const formattedMonth = new Date(payment.academic_month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      // academic_month is a plain 'YYYY-MM-DD' string (pg DATE type parser
+      // returns strings now) — parse it directly instead of routing through
+      // `new Date()`, which is timezone-sensitive and can roll the month
+      // back by one on servers whose local TZ is behind UTC.
+      const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const [amYear, amMonth] = String(payment.academic_month).split('-');
+      const formattedMonth = `${MONTH_NAMES[Number(amMonth) - 1]} ${amYear}`;
       const paymentDate = payment.payment_date
         ? new Date(payment.payment_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
         : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -260,7 +266,7 @@ router.get('/monthly-defaulters', async (req, res, next) => {
     // defaulter-month instances", unchanged from before.
     const monthGroups = {};
     rows.forEach(row => {
-      const key = row.academic_month.toISOString().slice(0, 10);
+      const key = String(row.academic_month).slice(0, 10);
       if (!monthGroups[key]) monthGroups[key] = [];
       monthGroups[key].push(row);
     });

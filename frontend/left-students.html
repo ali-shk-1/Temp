@@ -60,8 +60,8 @@
             <td>${s.first_name} ${s.last_name}</td>
             <td>${s.class || '—'}</td>
             <td>${s.section || '—'}</td>
-            <td>${s.admission_date ? new Date(s.admission_date).toLocaleDateString('en-GB') : '—'}</td>
-            <td>${s.left_date ? new Date(s.left_date).toLocaleDateString('en-GB') : '—'}</td>
+            <td>${formatDate(s.admission_date)}</td>
+            <td>${formatDate(s.left_date)}</td>
             <td>${s.left_reason || '—'}</td>
           </tr>`).join('');
       } catch (e) {

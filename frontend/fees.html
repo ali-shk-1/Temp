@@ -408,7 +408,7 @@
           <tr>
             <td>${r.first_name} ${r.last_name}</td>
             <td>${r.class}</td><td>${r.section}</td>
-            <td>${r.academic_month ? new Date(r.academic_month).toLocaleDateString('en-GB',{month:'long',year:'numeric'}) : '—'}</td>
+            <td>${monthLabel(r.academic_month)}</td>
             <td class="fee-paid">${formatMoney(r.amount_paid)}</td>
             <td style="font-size:12px;color:#888;">${r.payment_date ? new Date(r.payment_date).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
             <td><button class="btn btn-outline btn-sm" title="Print receipt" onclick="printDailyReceipt(${i})">🖨</button></td>
@@ -463,9 +463,17 @@
       }));
     }
 
+    const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    // Parses a 'YYYY-MM-DD' (or 'YYYY-MM') string directly into a
+    // "Month YYYY" label without ever constructing a `new Date(...)` and
+    // calling locale methods on it — that path is timezone-sensitive and
+    // can silently shift the displayed month backward by one.
     function monthLabel(dateStr) {
       if (!dateStr) return '—';
-      return new Date(dateStr).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      const m = String(dateStr).match(/^(\d{4})-(\d{2})/);
+      if (!m) return '—';
+      const [, year, month] = m;
+      return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
     }
 
     function renderMonthlyDefaultersGrouped(months) {
@@ -536,7 +544,7 @@
           else if (paid > 0)            { stCls = 'badge-warning'; stLabel = 'Partial'; }
           else                          { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
           return `<tr>
-            <td>${r.academic_month ? new Date(r.academic_month).toLocaleDateString('en-GB',{month:'long',year:'numeric'}) : '—'}</td>
+            <td>${monthLabel(r.academic_month)}</td>
             <td>${formatMoney(due)}</td>
             <td class="${paid>=due?'fee-paid':paid>0?'fee-partial':'fee-unpaid'}">${formatMoney(paid)}</td>
             <td>${bal > 0 ? formatMoney(bal) : '—'}</td>
@@ -765,9 +773,7 @@
         father_name:    father_name || '—',
         contact_1:      contact_1 || '—',
         photo_url:      photo_url || '',
-        academic_month: r.academic_month
-          ? new Date(r.academic_month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
-          : '—',
+        academic_month: monthLabel(r.academic_month),
         amount_due:  due,
         amount_paid: paid,
         balance:     due - paid,
