@@ -68,6 +68,11 @@
             <label>Admission Date</label>
             <input type="date" id="admissionDate"/>
           </div>
+          <div class="form-group">
+            <label>Fee Start Month</label>
+            <input type="month" id="feeStartMonth" />
+            <small style="color:#666;display:block;margin-top:4px;">Use YYYY-MM to control when fee billing begins. Leave blank to use admission month.</small>
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -146,7 +151,6 @@
     <div class="page-header">
       <h1 class="page-title">Students</h1>
       <div style="display:flex;gap:10px;align-items:center;">
-        <button class="btn btn-secondary" onclick="window.location.href='left-students.html'">Left Students</button>
         <button class="btn btn-primary" onclick="openModal()">+ Add Student</button>
       </div>
     </div>
@@ -249,6 +253,7 @@
       document.getElementById('admissionDate').value = student
         ? (student.admission_date ? student.admission_date.slice(0,10) : '')
         : todayStr;
+      document.getElementById('feeStartMonth').value = student ? (student.fee_start_month ? student.fee_start_month.slice(0,7) : '') : '';
       document.getElementById('contact1').value     = student ? (student.contact_1  || '') : '';
       document.getElementById('contact2').value     = student ? (student.contact_2  || '') : '';
       document.getElementById('email').value        = student ? (student.email      || '') : '';
@@ -269,7 +274,14 @@
     function viewStudent(id) {
       const s = allStudents.find(x => x.student_id === id);
       if (!s) return;
-      document.getElementById('profilePhoto').src = s.photo_url || '';
+      const profilePhoto = document.getElementById('profilePhoto');
+      if (s.photo_url) {
+        profilePhoto.src = s.photo_url;
+        profilePhoto.style.display = 'block';
+      } else {
+        profilePhoto.src = '';
+        profilePhoto.style.display = 'none';
+      }
       document.getElementById('profileName').textContent = `${s.first_name} ${s.last_name}`;
       document.getElementById('profileClass').textContent = `Class / Section: ${s.class || '—'} ${s.section || ''}`;
       document.getElementById('profileRoll').textContent = `Roll No: ${s.roll_no || '—'}`;
@@ -325,6 +337,7 @@
         section:     document.getElementById('section').value.trim().toUpperCase(),
         father_name: document.getElementById('fatherName').value.trim(),
         admission_date: document.getElementById('admissionDate').value || null,
+        fee_start_month: document.getElementById('feeStartMonth').value ? `${document.getElementById('feeStartMonth').value}-01` : null,
         contact_1:   document.getElementById('contact1').value.trim(),
         contact_2:   document.getElementById('contact2').value.trim(),
         email:       document.getElementById('email').value.trim() || null,
@@ -336,6 +349,12 @@
         showToast('Please fill all required fields.', 'error'); return;
       }
       try {
+        const createBody = {
+        ...body,
+        photo_url: photoFile ? null : body.photo_url
+      };
+
+      if (id) {
         if (photoFile) {
           const formData = new FormData();
           formData.append('photo', photoFile);
@@ -347,13 +366,23 @@
           body.photo_url = upload.url;
         }
 
-        if (id) {
-          await api('PUT', `/api/students/${id}`, body);
-          showToast('Student updated.', 'success');
-        } else {
-          await api('POST', '/api/students', body);
-          showToast('Student added.', 'success');
+        await api('PUT', `/api/students/${id}`, body);
+        showToast('Student updated.', 'success');
+      } else {
+        const studentRes = await api('POST', '/api/students', createBody);
+        if (photoFile) {
+          const uploadForm = new FormData();
+          uploadForm.append('photo', photoFile);
+          uploadForm.append('first_name', studentRes.student.first_name);
+          uploadForm.append('class', studentRes.student.class);
+          uploadForm.append('section', studentRes.student.section);
+          uploadForm.append('roll_no', studentRes.student.roll_no || '');
+          const upload = await apiForm('/api/students/upload-photo', uploadForm);
+          await api('PUT', `/api/students/${studentRes.student.student_id}`, { photo_url: upload.url });
         }
+
+        showToast('Student added.', 'success');
+      }
         closeModal();
         loadStudents();
       } catch(e) { showToast(e.message, 'error'); }

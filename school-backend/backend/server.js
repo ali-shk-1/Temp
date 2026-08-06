@@ -11,6 +11,7 @@ const feeRoutes       = require('./routes/fees');
 const expenseRoutes   = require('./routes/expenses');
 const dashboardRoutes = require('./routes/dashboard');
 const errorHandler    = require('./middleware/errorHandler');
+const pool            = require('./db');
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -58,10 +59,21 @@ app.use((req, res) => {
 /* ── Global Error Handler (must be last) ─ */
 app.use(errorHandler);
 
+async function ensureSchema() {
+  try {
+    await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS fee_start_month DATE`);
+    await pool.query(`ALTER TABLE IF EXISTS left_students ADD COLUMN IF NOT EXISTS fee_start_month DATE`);
+  } catch (err) {
+    console.error('❌ Failed to ensure schema:', err.message);
+  }
+}
+
 /* ── Start Server ──────────────────────── */
-app.listen(PORT, () => {
-  console.log(`🚀  Server running on http://localhost:${PORT}`);
-  console.log(`📋  Environment: ${process.env.NODE_ENV || 'development'}`);
+ensureSchema().finally(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀  Server running on http://localhost:${PORT}`);
+    console.log(`📋  Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
 });
 
 module.exports = app;

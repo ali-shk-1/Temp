@@ -10,6 +10,14 @@ const allowedClasses = new Set([
   '1','2','3','4','5','6','7','8','9','10'
 ]);
 
+function normalizeMonthInput(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw.slice(0,7)}-01`;
+  return null;
+}
+
 function sanitizeFilenameSegment(value) {
   return String(value || '')
     .trim()
@@ -18,15 +26,27 @@ function sanitizeFilenameSegment(value) {
     .replace(/[^a-z0-9_-]/g, '');
 }
 
+function getClassRollStart(normalizedClass) {
+  if (normalizedClass === 'playgroup') return 111;
+  if (normalizedClass === 'nursery') return 121;
+  if (normalizedClass === 'prep') return 131;
+  const numericClass = parseInt(normalizedClass, 10);
+  if (!Number.isNaN(numericClass)) {
+    return numericClass * 10 + 1;
+  }
+  return 1;
+}
+
 function buildStudentPhotoFilename(body, originalName) {
-  const segments = [
-    body.first_name,
-    body.class,
-    body.section,
-    body.roll_no
-  ].filter(Boolean).map(sanitizeFilenameSegment);
-  const base = segments.length ? segments.join('_') : Math.random().toString(36).slice(2, 10);
-  return `${base}-${Date.now()}${path.extname(originalName)}`;
+  const rollSegment = body.roll_no ? `roll${sanitizeFilenameSegment(body.roll_no)}` : `roll${sanitizeFilenameSegment(body.class)}_unknown`;
+  const nameSegment = sanitizeFilenameSegment(body.first_name);
+  const classSegment = sanitizeFilenameSegment(body.class);
+  const sectionSegment = sanitizeFilenameSegment(body.section);
+  const base = [rollSegment, nameSegment, classSegment, sectionSegment]
+    .filter(Boolean)
+    .join('#')
+    .replace(/#+$/,'');
+  return `${base || `student_${Date.now()}`}${path.extname(originalName)}`;
 }
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
@@ -140,11 +160,11 @@ router.post('/:id/leave', authorize('admin', 'principal'), async (req, res, next
       `INSERT INTO left_students
          (roll_no, section, class, first_name, last_name,
           father_name, contact_1, contact_2, email, photo_url, address,
-          admission_date, left_date, left_reason)
+          admission_date, fee_start_month, left_date, left_reason)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [student.roll_no, student.section, student.class, student.first_name, student.last_name,
        student.father_name, student.contact_1, student.contact_2, student.email, student.photo_url,
-       student.address, student.admission_date, new Date().toISOString().slice(0,10), left_reason || null]
+       student.address, student.admission_date, student.fee_start_month || student.admission_date, new Date().toISOString().slice(0,10), left_reason || null]
     );
 
     await client.query('DELETE FROM fee_payments WHERE student_id = $1', [req.params.id]);
@@ -195,7 +215,8 @@ router.get('/meta/classes', async (req, res, next) => {
 router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
-            father_name, contact_1, contact_2, email, photo_url, address, admission_date } = req.body;
+            father_name, contact_1, contact_2, email, photo_url, address,
+            admission_date, fee_start_month } = req.body;
 
     if (!section || !cls || !first_name || !last_name) {
       return res.status(400).json({
@@ -220,16 +241,21 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
     if (photo_url && !/^(?:https?:\/\/|\/uploads\/)/i.test(photo_url)) {
       return res.status(400).json({ error: 'Photo URL must begin with http://, https://, or /uploads or /uploads/.' });
     }
+    const normalizedFeeStart = normalizeMonthInput(fee_start_month);
+    if (fee_start_month && !normalizedFeeStart) {
+      return res.status(400).json({ error: 'fee_start_month must be in YYYY-MM format.' });
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO students
          (roll_no, section, class, first_name, last_name,
-          father_name, contact_1, contact_2, email, photo_url, address, admission_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          father_name, contact_1, contact_2, email, photo_url, address,
+          admission_date, fee_start_month)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [rollNo, section, normalizedClass, first_name, last_name,
        father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
-       admission_date || new Date().toISOString().slice(0, 10)]
+       admission_date || new Date().toISOString().slice(0, 10), normalizedFeeStart || null]
     );
 
     res.status(201).json({ message: 'Student added.', student: rows[0] });
@@ -244,7 +270,8 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
 router.put('/:id', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
-            father_name, contact_1, contact_2, email, photo_url, address, admission_date } = req.body;
+            father_name, contact_1, contact_2, email, photo_url, address,
+            admission_date, fee_start_month } = req.body;
 
     if (!section || !cls || !first_name || !last_name) {
       return res.status(400).json({
@@ -265,17 +292,22 @@ router.put('/:id', authorize('admin', 'principal'), async (req, res, next) => {
     if (photo_url && !/^(?:https?:\/\/|\/uploads\/)/i.test(photo_url)) {
       return res.status(400).json({ error: 'Photo URL must begin with http://, https://, or /uploads/.' });
     }
+    const normalizedFeeStart = normalizeMonthInput(fee_start_month);
+    if (fee_start_month && !normalizedFeeStart) {
+      return res.status(400).json({ error: 'fee_start_month must be in YYYY-MM format.' });
+    }
 
     const { rows } = await pool.query(
       `UPDATE students SET
          roll_no=COALESCE($1, roll_no), section=$2, class=$3, first_name=$4, last_name=$5,
          father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
-         admission_date=COALESCE($12, admission_date)
-       WHERE student_id=$13
+         admission_date=COALESCE($12, admission_date),
+         fee_start_month=COALESCE($13, fee_start_month)
+       WHERE student_id=$14
        RETURNING *`,
       [rollNo, section, normalizedClass, first_name, last_name,
        father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
-       admission_date || null, req.params.id]
+       admission_date || null, normalizedFeeStart || null, req.params.id]
     );
 
     if (rows.length === 0) return res.status(404).json({ error: 'Student not found.' });

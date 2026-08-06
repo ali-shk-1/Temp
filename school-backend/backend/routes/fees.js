@@ -204,13 +204,14 @@ router.get('/monthly-defaulters', async (req, res, next) => {
                 s.contact_2,
                 s.address,
                 s.admission_date,
+                COALESCE(s.fee_start_month, DATE_TRUNC('month', s.admission_date)) AS fee_start_month,
                 generate_series(
-                  DATE_TRUNC('month', s.admission_date),
+                  COALESCE(s.fee_start_month, DATE_TRUNC('month', s.admission_date)),
                   DATE_TRUNC('month', $1::DATE),
                   INTERVAL '1 month'
                 )::date AS academic_month
          FROM students s
-         WHERE DATE_TRUNC('month', s.admission_date) <= DATE_TRUNC('month', $1::DATE)
+         WHERE COALESCE(s.fee_start_month, DATE_TRUNC('month', s.admission_date)) <= DATE_TRUNC('month', $1::DATE)
        ),
        payment_agg AS (
          SELECT fp.student_id,
