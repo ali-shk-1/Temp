@@ -75,9 +75,27 @@ router.post('/', can('fees.add'), async (req, res, next) => {
       const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
       const [amYear, amMonth] = String(payment.academic_month).split('-');
       const formattedMonth = `${MONTH_NAMES[Number(amMonth) - 1]} ${amYear}`;
-      const paymentDate = payment.payment_date
-        ? new Date(payment.payment_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-        : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      // payment_date is queried elsewhere via DATE(fp.payment_date), which
+      // implies it carries time info (TIMESTAMP), not a plain DATE — but
+      // that isn't confirmable from the migrations alone (the fee_payments
+      // table predates the tracked migration history). Parse the calendar
+      // date directly out of the ISO string instead of routing through
+      // `new Date(...).toLocaleDateString()`, which is timezone-sensitive
+      // and can roll the day back by one for servers whose local TZ is
+      // behind UTC — same bug already fixed for academic_month above.
+      // Works correctly whether payment_date is 'YYYY-MM-DD' or a full
+      // 'YYYY-MM-DDTHH:MM:SS...' timestamp.
+      const DAY_MONTH_NAMES = MONTH_NAMES;
+      function formatPaymentDate(d) {
+        const match = d ? String(d).match(/^(\d{4})-(\d{2})-(\d{2})/) : null;
+        if (match) {
+          const [, y, mo, day] = match;
+          return `${Number(day)} ${DAY_MONTH_NAMES[Number(mo) - 1]} ${y}`;
+        }
+        const now = new Date();
+        return `${now.getDate()} ${DAY_MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+      }
+      const paymentDate = formatPaymentDate(payment.payment_date);
       const formatCurrency = value => new Intl.NumberFormat('en-PK', {
         style: 'currency', currency: 'PKR', minimumFractionDigits: 0,
       }).format(Number(value || 0));
