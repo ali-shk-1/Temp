@@ -30,8 +30,10 @@ const authenticate = (req, res, next) => {
  * Usage: authorize('admin')  |  authorize('admin', 'principal')  |  authorize('principal')
  */
 const authorize = (...roles) => {
+  const normalizedRoles = roles.map(r => String(r).toLowerCase());
   return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    const userRole = req.user && req.user.role ? String(req.user.role).toLowerCase() : null;
+    if (!userRole || !normalizedRoles.includes(userRole)) {
       return res.status(403).json({
         error: `Access denied. Required role(s): ${roles.join(', ')}.`,
       });

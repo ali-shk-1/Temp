@@ -43,7 +43,7 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
       `SELECT fp.*,
               (fp.amount_due - fp.amount_paid) AS balance,
               s.roll_no, s.first_name, s.last_name, s.class, s.section,
-              s.father_name, s.contact_1, s.contact_2, s.address, s.email
+              s.father_name, s.contact_1, s.contact_2, s.address, s.email, s.photo_url
        FROM fee_payments fp
        JOIN students s ON s.student_id = fp.student_id
        WHERE fp.payment_id = $1`,
@@ -247,7 +247,7 @@ router.get('/', async (req, res, next) => {
     const { month, class: cls, search } = req.query;
     let query = `
       SELECT fp.payment_id, fp.student_id, fp.academic_month, fp.amount_due, fp.amount_paid,
-             fp.payment_date, s.roll_no, s.first_name, s.last_name, s.class, s.section
+             fp.payment_date, s.roll_no, s.first_name, s.last_name, s.class, s.section, s.photo_url
       FROM fee_payments fp
       JOIN students s ON s.student_id = fp.student_id
       WHERE 1=1`;

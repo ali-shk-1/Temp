@@ -1,9 +1,46 @@
 const router = require('express').Router();
+const fs     = require('fs');
+const path   = require('path');
+const multer = require('multer');
 const pool   = require('../db');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: uploadsDir,
+  filename: (req, file, cb) => {
+    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${path.extname(file.originalname)}`;
+    cb(null, safeName);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  }
+});
+
 // All student routes require authentication
 router.use(authenticate);
+
+router.post('/upload-photo', authorize('admin', 'principal'), upload.single('photo'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Photo file is required.' });
+    }
+    const url = `/uploads/${req.file.filename}`;
+    res.json({ url });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /* ─────────────────────────────────────────
    GET /api/students
@@ -66,7 +103,7 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
-            father_name, contact_1, contact_2, email, address, admission_date } = req.body;
+            father_name, contact_1, contact_2, email, photo_url, address, admission_date } = req.body;
 
     if (!roll_no || !section || !cls || !first_name || !last_name) {
       return res.status(400).json({
@@ -76,15 +113,18 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address.' });
     }
+    if (photo_url && !/^(?:https?:\/\/|\/uploads\/)/i.test(photo_url)) {
+      return res.status(400).json({ error: 'Photo URL must begin with http://, https://, or /uploads or /uploads/.' });
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO students
          (roll_no, section, class, first_name, last_name,
-          father_name, contact_1, contact_2, email, address, admission_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          father_name, contact_1, contact_2, email, photo_url, address, admission_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
       [roll_no, section, cls, first_name, last_name,
-       father_name || null, contact_1 || null, contact_2 || null, email || null, address || null,
+       father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
        admission_date || new Date().toISOString().slice(0, 10)]
     );
 
@@ -97,10 +137,10 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
 /* ─────────────────────────────────────────
    PUT /api/students/:id
 ───────────────────────────────────────── */
-router.put('/:id', authorize('principal'), async (req, res, next) => {
+router.put('/:id', authorize('admin', 'principal'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
-            father_name, contact_1, contact_2, email, address, admission_date } = req.body;
+            father_name, contact_1, contact_2, email, photo_url, address, admission_date } = req.body;
 
     if (!roll_no || !section || !cls || !first_name || !last_name) {
       return res.status(400).json({
@@ -110,16 +150,19 @@ router.put('/:id', authorize('principal'), async (req, res, next) => {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address.' });
     }
+    if (photo_url && !/^(?:https?:\/\/|\/uploads\/)/i.test(photo_url)) {
+      return res.status(400).json({ error: 'Photo URL must begin with http://, https://, or /uploads/.' });
+    }
 
     const { rows } = await pool.query(
       `UPDATE students SET
          roll_no=$1, section=$2, class=$3, first_name=$4, last_name=$5,
-         father_name=$6, contact_1=$7, contact_2=$8, email=$9, address=$10,
-         admission_date=COALESCE($11, admission_date)
-       WHERE student_id=$12
+         father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
+         admission_date=COALESCE($12, admission_date)
+       WHERE student_id=$13
        RETURNING *`,
       [roll_no, section, cls, first_name, last_name,
-       father_name || null, contact_1 || null, contact_2 || null, email || null, address || null,
+       father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
        admission_date || null, req.params.id]
     );
 

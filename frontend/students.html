@@ -19,6 +19,7 @@
   
   <title>Students — School Management</title>
   <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="students.css"/>
 </head>
 <body>
   <div id="toast" class="toast"></div>
@@ -87,6 +88,25 @@
             <label>Email</label>
             <input type="email" id="email" placeholder="student@example.com"/>
           </div>
+          <div class="form-group">
+            <label>Photo URL</label>
+            <input type="url" id="photoUrl" placeholder="https://example.com/photo.jpg"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="width:100%;">
+            <label>Upload Photo</label>
+            <input type="file" id="photoFile" accept="image/*" onchange="previewSelectedPhoto()" />
+            <small style="color:#666;display:block;margin-top:4px;">If you choose a file, it will be uploaded and used instead of the Photo URL.</small>
+          </div>
+        </div>
+        <div class="form-row" id="photoPreviewRow" style="display:none;">
+          <div class="form-group" style="width:100%;">
+            <label>Photo Preview</label>
+            <div style="border:1px solid #ccc;border-radius:8px;overflow:hidden;width:160px;height:160px;display:flex;align-items:center;justify-content:center;background:#f8f8f8;">
+              <img id="photoPreview" src="" alt="Photo preview" style="max-width:100%;max-height:100%;display:block;" />
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label>Address</label>
@@ -97,6 +117,32 @@
           <button class="btn btn-primary" onclick="saveStudent()">Save Student</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="profileOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Student Profile</h2>
+        <button class="modal-close" onclick="closeProfileModal()">×</button>
+      </div>
+      <div class="profile-card">
+        <div class="profile-photo">
+          <img id="profilePhoto" src="" alt="Student photo" onerror="this.style.display='none'" />
+        </div>
+        <div class="profile-details">
+          <div><strong id="profileName"></strong></div>
+          <div id="profileClass"></div>
+          <div id="profileRoll"></div>
+          <div id="profileFather"></div>
+          <div id="profileContact"></div>
+          <div id="profileEmail"></div>
+          <div id="profileAddress" style="white-space:pre-wrap;margin-top:8px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeProfileModal()">Close</button>
+      </div>
     </div>
   </div>
 
@@ -181,6 +227,7 @@
           <td>${s.email || '—'}</td>
           <td style="font-size:12px;color:#888;">${s.admission_date ? formatDate(s.admission_date) : '—'}</td>
           <td>
+            <button class="btn btn-outline btn-sm" onclick="viewStudent(${s.student_id})">View</button>
             <button class="btn btn-outline btn-sm" onclick="editStudent(${s.student_id})">Edit</button>
             <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.student_id})">Delete</button>
             </td>
@@ -214,6 +261,9 @@
       document.getElementById('contact1').value     = student ? (student.contact_1  || '') : '';
       document.getElementById('contact2').value     = student ? (student.contact_2  || '') : '';
       document.getElementById('email').value        = student ? (student.email      || '') : '';
+      document.getElementById('photoUrl').value      = student ? (student.photo_url  || '') : '';
+      document.getElementById('photoFile').value     = '';
+      setPhotoPreview(student ? student.photo_url || '' : '');
       document.getElementById('address').value      = student ? (student.address    || '') : '';
       document.getElementById('modalTitle').textContent = student ? 'Edit Student' : 'Add Student';
       document.getElementById('modalOverlay').classList.add('open');
@@ -221,6 +271,52 @@
 
     function closeModal() {
       document.getElementById('modalOverlay').classList.remove('open');
+      document.getElementById('photoFile').value = '';
+      setPhotoPreview('');
+    }
+
+    function viewStudent(id) {
+      const s = allStudents.find(x => x.student_id === id);
+      if (!s) return;
+      document.getElementById('profilePhoto').src = s.photo_url || '';
+      document.getElementById('profileName').textContent = `${s.first_name} ${s.last_name}`;
+      document.getElementById('profileClass').textContent = `Class / Section: ${s.class || '—'} ${s.section || ''}`;
+      document.getElementById('profileRoll').textContent = `Roll No: ${s.roll_no || '—'}`;
+      document.getElementById('profileFather').textContent = `Father: ${s.father_name || '—'}`;
+      document.getElementById('profileContact').textContent = `Contact: ${s.contact_1 || '—'}`;
+      document.getElementById('profileEmail').textContent = `Email: ${s.email || '—'}`;
+      document.getElementById('profileAddress').textContent = `Address: ${s.address || '—'}`;
+      document.getElementById('profileOverlay').classList.add('open');
+    }
+
+    function closeProfileModal() {
+      document.getElementById('profileOverlay').classList.remove('open');
+      document.getElementById('profilePhoto').src = '';
+    }
+
+    function previewSelectedPhoto() {
+      const file = document.getElementById('photoFile').files[0];
+      if (!file) {
+        setPhotoPreview(document.getElementById('photoUrl').value.trim());
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => setPhotoPreview(reader.result);
+      reader.readAsDataURL(file);
+    }
+
+    function setPhotoPreview(src) {
+      const previewRow = document.getElementById('photoPreviewRow');
+      const previewImg = document.getElementById('photoPreview');
+      if (src) {
+        previewImg.src = src;
+        previewImg.style.display = 'block';
+        previewRow.style.display = 'flex';
+      } else {
+        previewImg.src = '';
+        previewImg.style.display = 'none';
+        previewRow.style.display = 'none';
+      }
     }
 
     function editStudent(id) {
@@ -241,12 +337,21 @@
         contact_1:   document.getElementById('contact1').value.trim(),
         contact_2:   document.getElementById('contact2').value.trim(),
         email:       document.getElementById('email').value.trim() || null,
+        photo_url:   document.getElementById('photoUrl').value.trim() || null,
         address:     document.getElementById('address').value.trim(),
       };
+      const photoFile = document.getElementById('photoFile').files[0];
       if (!body.first_name || !body.last_name || !body.roll_no || !body.class || !body.section) {
         showToast('Please fill all required fields.', 'error'); return;
       }
       try {
+        if (photoFile) {
+          const formData = new FormData();
+          formData.append('photo', photoFile);
+          const upload = await apiForm('/api/students/upload-photo', formData);
+          body.photo_url = upload.url;
+        }
+
         if (id) {
           await api('PUT', `/api/students/${id}`, body);
           showToast('Student updated.', 'success');

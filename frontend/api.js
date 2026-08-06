@@ -72,6 +72,26 @@ async function api(method, path, body = null) {
   return data;
 }
 
+async function apiForm(path, formData) {
+  const opts = {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${getToken()}`
+    },
+    body: formData
+  };
+
+  const res = await fetch(BASE_URL + path, opts);
+  if (res.status === 401) {
+    logout();
+    return;
+  }
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+  return data;
+}
+
 function showToast(msg, type = 'success') {
   const el = document.getElementById('toast');
   if (!el) return;
