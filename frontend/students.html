@@ -378,7 +378,7 @@
           uploadForm.append('section', studentRes.student.section);
           uploadForm.append('roll_no', studentRes.student.roll_no || '');
           const upload = await apiForm('/api/students/upload-photo', uploadForm);
-          await api('PUT', `/api/students/${studentRes.student.student_id}`, { photo_url: upload.url });
+          await api('PUT', `/api/students/${studentRes.student.student_id}`, { ...body, photo_url: upload.url });
         }
 
         showToast('Student added.', 'success');

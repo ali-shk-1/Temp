@@ -18,35 +18,8 @@ function normalizeMonthInput(value) {
   return null;
 }
 
-function sanitizeFilenameSegment(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_-]/g, '');
-}
-
 function getClassRollStart(normalizedClass) {
-  if (normalizedClass === 'playgroup') return 111;
-  if (normalizedClass === 'nursery') return 121;
-  if (normalizedClass === 'prep') return 131;
-  const numericClass = parseInt(normalizedClass, 10);
-  if (!Number.isNaN(numericClass)) {
-    return numericClass * 10 + 1;
-  }
   return 1;
-}
-
-function buildStudentPhotoFilename(body, originalName) {
-  const rollSegment = body.roll_no ? `roll${sanitizeFilenameSegment(body.roll_no)}` : `roll${sanitizeFilenameSegment(body.class)}_unknown`;
-  const nameSegment = sanitizeFilenameSegment(body.first_name);
-  const classSegment = sanitizeFilenameSegment(body.class);
-  const sectionSegment = sanitizeFilenameSegment(body.section);
-  const base = [rollSegment, nameSegment, classSegment, sectionSegment]
-    .filter(Boolean)
-    .join('#')
-    .replace(/#+$/,'');
-  return `${base || `student_${Date.now()}`}${path.extname(originalName)}`;
 }
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
@@ -57,8 +30,8 @@ if (!fs.existsSync(uploadsDir)) {
 const storage = multer.diskStorage({
   destination: uploadsDir,
   filename: (req, file, cb) => {
-    const safeName = buildStudentPhotoFilename(req.body, file.originalname);
-    cb(null, safeName);
+    const uniqueToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    cb(null, `${uniqueToken}${path.extname(file.originalname)}`);
   }
 });
 
@@ -232,8 +205,13 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
       return res.status(400).json({ error: 'Roll No must be a positive integer if provided.' });
     }
     if (rollNo == null) {
-      const { rows: maxRow } = await pool.query('SELECT MAX(roll_no) AS max_roll FROM students');
-      rollNo = (maxRow[0]?.max_roll || 0) + 1;
+      const classStart = getClassRollStart(normalizedClass);
+      const { rows: maxRow } = await pool.query(
+        'SELECT MAX(roll_no) AS max_roll FROM students WHERE class = $1',
+        [normalizedClass]
+      );
+      const maxRoll = maxRow[0]?.max_roll;
+      rollNo = (maxRoll != null && maxRoll >= classStart) ? maxRoll + 1 : classStart;
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address.' });
@@ -330,7 +308,7 @@ router.delete('/:id', authorize('principal'), async (req, res, next) => {
     await client.query('DELETE FROM fee_payments WHERE student_id = $1', [req.params.id]);
 
     const { rows } = await client.query(
-      'DELETE FROM students WHERE student_id = $1 RETURNING student_id, first_name, last_name',
+      'DELETE FROM students WHERE student_id = $1 RETURNING student_id, first_name, last_name, photo_url',
       [req.params.id]
     );
 
@@ -340,6 +318,20 @@ router.delete('/:id', authorize('principal'), async (req, res, next) => {
     }
 
     await client.query('COMMIT');
+
+    // Delete the student's photo file now that the DB delete is committed.
+    // Only removes files served from our own /uploads folder — never touches
+    // external http(s) photo_url values.
+    const photoUrl = rows[0].photo_url;
+    if (photoUrl && photoUrl.startsWith('/uploads/')) {
+      const photoPath = path.join(uploadsDir, path.basename(photoUrl));
+      fs.unlink(photoPath, (err) => {
+        if (err && err.code !== 'ENOENT') {
+          console.error('Failed to delete student photo:', photoPath, err.message);
+        }
+      });
+    }
+
     res.json({ message: 'Student deleted.', student: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -357,7 +349,7 @@ router.get('/meta/classes', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT DISTINCT class, section
        FROM students
-       ORDER BY class, section`
+       ORDER BY class, section` 
     );
     res.json(rows);
   } catch (err) {
