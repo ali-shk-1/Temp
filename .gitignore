@@ -5,5 +5,12 @@ node_modules/
 .next/
 dist/
 build/
+
+# Ignore ZIP files
+*.zip
+
+# Logs
 *.log
+
+# OS files
 .DS_Store
