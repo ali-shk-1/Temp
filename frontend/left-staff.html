@@ -137,9 +137,9 @@
           <td>${formatDate(s.left_date)}</td>
           <td>${s.left_reason || '—'}</td>
           <td>
-            ${hasPerm('staff.edit') ? `<button class="btn btn-outline btn-sm" onclick="editLeftStaff(${s.left_staff_id})">Edit</button>` : ''}
-            ${hasPerm('staff.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteLeftStaff(${s.left_staff_id})">Delete</button>` : ''}
-            ${!hasPerm('staff.edit') && !hasPerm('staff.delete') ? '—' : ''}
+            ${hasPerm('left-staff.edit') ? `<button class="btn btn-outline btn-sm" onclick="editLeftStaff(${s.left_staff_id})">Edit</button>` : ''}
+            ${hasPerm('left-staff.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteLeftStaff(${s.left_staff_id})">Delete</button>` : ''}
+            ${!hasPerm('left-staff.edit') && !hasPerm('left-staff.delete') ? '—' : ''}
           </td>
         </tr>`).join('');
     }

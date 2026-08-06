@@ -163,9 +163,9 @@
           <td>${formatDate(s.left_date)}</td>
           <td>${s.left_reason || '—'}</td>
           <td>
-            ${hasPerm('students.edit') ? `<button class="btn btn-outline btn-sm" onclick="editLeftStudent(${s.left_student_id})">Edit</button>` : ''}
-            ${hasPerm('students.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteLeftStudent(${s.left_student_id})">Delete</button>` : ''}
-            ${!hasPerm('students.edit') && !hasPerm('students.delete') ? '—' : ''}
+            ${hasPerm('left-students.edit') ? `<button class="btn btn-outline btn-sm" onclick="editLeftStudent(${s.left_student_id})">Edit</button>` : ''}
+            ${hasPerm('left-students.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteLeftStudent(${s.left_student_id})">Delete</button>` : ''}
+            ${!hasPerm('left-students.edit') && !hasPerm('left-students.delete') ? '—' : ''}
           </td>
         </tr>`).join('');
     }

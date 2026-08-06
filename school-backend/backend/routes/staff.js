@@ -60,7 +60,7 @@ router.post('/:id/leave', can('staff.leave'), async (req, res, next) => {
 });
 
 // PUT /api/staff/left/:id
-router.put('/left/:id', can('staff.edit'), async (req, res, next) => {
+router.put('/left/:id', can('left-staff.edit'), async (req, res, next) => {
   try {
     const { name, cnic, phone_no, salary, designation_id, designation, left_date, left_reason } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required.' });
@@ -82,7 +82,7 @@ router.put('/left/:id', can('staff.edit'), async (req, res, next) => {
 });
 
 // DELETE /api/staff/left/:id
-router.delete('/left/:id', can('staff.delete'), async (req, res, next) => {
+router.delete('/left/:id', can('left-staff.delete'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       'DELETE FROM left_staff WHERE left_staff_id = $1 RETURNING left_staff_id, name',
@@ -190,12 +190,20 @@ router.post('/', can('staff.add'), async (req, res, next) => {
       return res.status(400).json({ error: 'name and cnic are required.' });
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO staff (name, cnic, phone_no, salary, designation_id)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING *`,
-      [name, cnic, phone_no || null, salary || null, designation_id || null]
-    );
+    let rows;
+    try {
+      ({ rows } = await pool.query(
+        `INSERT INTO staff (name, cnic, phone_no, salary, designation_id)
+         VALUES ($1,$2,$3,$4,$5)
+         RETURNING *`,
+        [name, cnic, phone_no || null, salary || null, designation_id || null]
+      ));
+    } catch (err) {
+      if (err.code === '23505' && err.constraint === 'staff_cnic_unique') {
+        return res.status(409).json({ error: 'A staff member with this CNIC already exists.' });
+      }
+      throw err;
+    }
     res.status(201).json({ message: 'Staff member added.', staff: rows[0] });
     broadcast('staff.changed', { action: 'added', staff_id: rows[0].staff_id });
   } catch (err) { next(err); }
@@ -210,13 +218,21 @@ router.put('/:id', can('staff.edit'), async (req, res, next) => {
       return res.status(400).json({ error: 'name and cnic are required.' });
     }
 
-    const { rows } = await pool.query(
-      `UPDATE staff SET name=$1, cnic=$2,
-         phone_no=$3, salary=$4, designation_id=$5
-       WHERE staff_id=$6
-       RETURNING *`,
-      [name, cnic, phone_no || null, salary || null, designation_id || null, req.params.id]
-    );
+    let rows;
+    try {
+      ({ rows } = await pool.query(
+        `UPDATE staff SET name=$1, cnic=$2,
+           phone_no=$3, salary=$4, designation_id=$5
+         WHERE staff_id=$6
+         RETURNING *`,
+        [name, cnic, phone_no || null, salary || null, designation_id || null, req.params.id]
+      ));
+    } catch (err) {
+      if (err.code === '23505' && err.constraint === 'staff_cnic_unique') {
+        return res.status(409).json({ error: 'A staff member with this CNIC already exists.' });
+      }
+      throw err;
+    }
     if (rows.length === 0) return res.status(404).json({ error: 'Staff member not found.' });
     res.json({ message: 'Staff member updated.', staff: rows[0] });
     broadcast('staff.changed', { action: 'updated', staff_id: rows[0].staff_id });

@@ -202,14 +202,14 @@ router.get('/summary/monthly', async (req, res, next) => {
     const month = normalizeMonthInput(req.query.month) || `${new Date().toISOString().slice(0, 7)}-01`;
     const { rows } = await pool.query(
       `SELECT
-         TO_CHAR(academic_month, 'Month YYYY') AS month_label,
+         TO_CHAR(DATE_TRUNC('month', academic_month), 'Month YYYY') AS month_label,
          COUNT(*) AS payment_count,
          SUM(amount_due)  AS total_due,
          SUM(amount_paid) AS total_paid,
          SUM(amount_due - amount_paid) AS total_balance
        FROM fee_payments
        WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $1::DATE)
-       GROUP BY academic_month`,
+       GROUP BY DATE_TRUNC('month', academic_month)`,
       [month]
     );
     res.json(rows[0] || { month_label: null, payment_count: 0, total_due: 0, total_paid: 0, total_balance: 0 });

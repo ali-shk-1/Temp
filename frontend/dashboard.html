@@ -337,6 +337,7 @@
       'fees.changed': () => { loadStats(); loadTodayFees(); loadDefaulters(); loadMonthlySummary(); },
       'expenses.changed': () => { loadStats(); loadRecentExpenses(); loadMonthlySummary(); },
       'staff.changed': () => loadStats(),
+      'permissions.changed': () => refreshMyPermissions(),
     });
   </script>
 </body>

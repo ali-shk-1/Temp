@@ -104,6 +104,7 @@ router.post('/change-password', authenticate, async (req, res, next) => {
       'SELECT password_hash FROM users WHERE user_id = $1',
       [req.user.user_id]
     );
+    if (rows.length === 0) return res.status(404).json({ error: 'User not found.' });
 
     const match = await bcrypt.compare(current_password, rows[0].password_hash);
     if (!match) return res.status(401).json({ error: 'Current password is incorrect.' });

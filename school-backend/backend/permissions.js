@@ -32,6 +32,14 @@ const PERMISSION_GROUPS = [
     ],
   },
   {
+    key: 'left-students',
+    label: 'Left Students',
+    permissions: [
+      { key: 'left-students.edit',   label: 'Edit left student' },
+      { key: 'left-students.delete', label: 'Delete left student' },
+    ],
+  },
+  {
     key: 'staff',
     label: 'Staff',
     permissions: [
@@ -40,6 +48,14 @@ const PERMISSION_GROUPS = [
       { key: 'staff.delete',       label: 'Delete staff' },
       { key: 'staff.leave',        label: 'Mark staff as left' },
       { key: 'staff.designations', label: 'Manage designations' },
+    ],
+  },
+  {
+    key: 'left-staff',
+    label: 'Left Staff',
+    permissions: [
+      { key: 'left-staff.edit',   label: 'Edit left staff' },
+      { key: 'left-staff.delete', label: 'Delete left staff' },
     ],
   },
   {
@@ -96,11 +112,15 @@ const DEFAULT_PERMISSIONS = {
     'students.edit': true,
     'students.delete': false,   // was authorize('principal') only
     'students.leave': true,     // was authorize('admin','principal')
+    'left-students.edit': true,     // mirrors prior students.edit behavior
+    'left-students.delete': false,  // mirrors prior students.delete behavior
     'staff.add': true,
     'staff.edit': true,
     'staff.delete': true,
     'staff.leave': true,
     'staff.designations': true,
+    'left-staff.edit': true,        // mirrors prior staff.edit behavior
+    'left-staff.delete': true,      // mirrors prior staff.delete behavior
     'fees.add': true,
     'fees.edit': true,
     'fees.delete': true,
@@ -114,11 +134,15 @@ const DEFAULT_PERMISSIONS = {
     'students.edit': true,
     'students.delete': true,    // authorize('principal')
     'students.leave': true,
+    'left-students.edit': true,     // mirrors prior students.edit behavior
+    'left-students.delete': true,   // mirrors prior students.delete behavior
     'staff.add': false,         // staff.js is admin-only
     'staff.edit': false,
     'staff.delete': false,
     'staff.leave': false,
     'staff.designations': false,
+    'left-staff.edit': false,       // mirrors prior staff.edit behavior
+    'left-staff.delete': false,     // mirrors prior staff.delete behavior
     'fees.add': true,
     'fees.edit': true,
     'fees.delete': true,
@@ -134,11 +158,15 @@ const DEFAULT_PERMISSIONS = {
     'students.edit': false,
     'students.delete': false,
     'students.leave': false,
+    'left-students.edit': false,
+    'left-students.delete': false,
     'staff.add': false,
     'staff.edit': false,
     'staff.delete': false,
     'staff.leave': false,
     'staff.designations': false,
+    'left-staff.edit': false,
+    'left-staff.delete': false,
     'fees.add': false,
     'fees.edit': false,
     'fees.delete': false,

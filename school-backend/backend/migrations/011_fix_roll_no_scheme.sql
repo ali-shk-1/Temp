@@ -27,4 +27,18 @@ BEGIN
 END;
 $$;
 
+-- Prevent duplicate CNICs across active staff. NOTE: if any duplicate,
+-- non-null cnic values already exist, this will fail — resolve those
+-- manually before rerunning. NULLs are unaffected (a UNIQUE constraint
+-- allows any number of NULLs in Postgres).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'staff_cnic_unique'
+  ) THEN
+    ALTER TABLE staff ADD CONSTRAINT staff_cnic_unique UNIQUE (cnic);
+  END IF;
+END;
+$$;
+
 COMMIT;

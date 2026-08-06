@@ -114,7 +114,7 @@ router.get('/left', async (req, res, next) => {
 });
 
 // PUT /api/students/left/:id — full edit of a left-student record
-router.put('/left/:id', can('students.edit'), async (req, res, next) => {
+router.put('/left/:id', can('left-students.edit'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, email, photo_url, address,
@@ -156,7 +156,7 @@ router.put('/left/:id', can('students.edit'), async (req, res, next) => {
 });
 
 // DELETE /api/students/left/:id
-router.delete('/left/:id', can('students.delete'), async (req, res, next) => {
+router.delete('/left/:id', can('left-students.delete'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       'DELETE FROM left_students WHERE left_student_id = $1 RETURNING left_student_id, first_name, last_name, photo_url',

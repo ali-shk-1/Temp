@@ -189,9 +189,18 @@
     <div id="tab-history-content" style="display:none;">
       <div class="card" style="margin-bottom:12px;">
         <div class="filters">
-          <select id="historyStudentSel" onchange="loadStudentHistory()" style="min-width:220px;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
-            <option value="">Select a student…</option>
-          </select>
+          <div id="historyStudentSearchWrap" style="position:relative;min-width:280px;">
+            <input type="text" id="historyStudentSearch" autocomplete="off"
+              placeholder="Search student by name or roll no…"
+              style="width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;"
+              oninput="onHistoryStudentSearchInput()"
+              onfocus="onHistoryStudentSearchInput()" />
+            <input type="hidden" id="historyStudentSel" value="" />
+            <div id="historyStudentResults"
+              style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;
+                     max-height:260px;overflow-y:auto;border:1px solid #ccc;border-top:none;
+                     border-radius:0 0 4px 4px;background:#1c1c22;box-shadow:0 6px 16px rgba(0,0,0,.35);"></div>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -291,14 +300,67 @@
         const res = await api('GET', '/api/students');
         allStudents = normalizeList(res, ['students', 'data']);
         allStudents.sort((a,b) => a.class.localeCompare(b.class) || a.roll_no - b.roll_no);
-        // History dropdown
-        const hSel = document.getElementById('historyStudentSel');
-        hSel.innerHTML = '<option value="">Select a student…</option>';
-        allStudents.forEach(s => {
-          hSel.innerHTML += `<option value="${s.student_id}">${s.class}-${s.section} | ${s.first_name} ${s.last_name}</option>`;
-        });
       } catch(e) { console.error(e); }
     }
+
+    // ── Student History: searchable typeahead (replaces plain <select>) ──
+    function historyStudentLabel(s) {
+      return `${s.class}-${s.section} | ${s.first_name} ${s.last_name}`;
+    }
+
+    function onHistoryStudentSearchInput() {
+      const input = document.getElementById('historyStudentSearch');
+      const results = document.getElementById('historyStudentResults');
+      const q = input.value.trim().toLowerCase();
+
+      // Clear the selected student_id as soon as the user edits the text —
+      // the old value should no longer be considered "selected" until they
+      // pick a new match, so loadStudentHistory() (if triggered elsewhere)
+      // doesn't act on a stale id that no longer matches what's typed.
+      const hiddenSel = document.getElementById('historyStudentSel');
+
+      const matches = (q
+        ? allStudents.filter(s =>
+            `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) ||
+            String(s.roll_no).includes(q) ||
+            `${s.class}-${s.section}`.toLowerCase().includes(q))
+        : allStudents
+      ).slice(0, 50); // cap rendered results for very large rosters
+
+      if (matches.length === 0) {
+        results.innerHTML = `<div style="padding:8px 10px;font-size:13px;color:#888;">No matching students.</div>`;
+      } else {
+        results.innerHTML = matches.map(s => `
+          <div class="history-student-option" data-id="${s.student_id}"
+               style="padding:7px 10px;font-size:13px;cursor:pointer;"
+               onmousedown="selectHistoryStudent(${s.student_id})">
+            ${historyStudentLabel(s)}
+          </div>
+        `).join('');
+      }
+      results.style.display = 'block';
+    }
+
+    function selectHistoryStudent(studentId) {
+      const student = allStudents.find(s => s.student_id === studentId);
+      const input = document.getElementById('historyStudentSearch');
+      const hiddenSel = document.getElementById('historyStudentSel');
+      const results = document.getElementById('historyStudentResults');
+
+      input.value = student ? historyStudentLabel(student) : '';
+      hiddenSel.value = studentId;
+      results.style.display = 'none';
+      loadStudentHistory();
+    }
+
+    // Close the results dropdown on outside click (mousedown on an option
+    // fires before this, via onmousedown above, so selection still works).
+    document.addEventListener('click', (e) => {
+      const wrap = document.getElementById('historyStudentSearchWrap');
+      if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('historyStudentResults').style.display = 'none';
+      }
+    });
 
     async function loadStats() {
   try {
