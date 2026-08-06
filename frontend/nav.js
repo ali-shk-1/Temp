@@ -22,6 +22,7 @@ const ALL_PAGES = [
   { href: 'students.html',  label: 'Students',  key: 'students'  },
   { href: 'left-students.html', label: 'Left Students', key: 'left-students' },
   { href: 'staff.html',     label: 'Staff',     key: 'staff'     },
+  { href: 'left-staff.html', label: 'Left Staff', key: 'left-staff' },
   { href: 'fees.html',      label: 'Fees',      key: 'fees'      },
   { href: 'expenses.html',  label: 'Expenses',  key: 'expenses'  },
 ];
@@ -55,6 +56,25 @@ function hasPerm(permissionKey) {
 }
 
 /**
+ * hasPageAccess('staff') -> true/false
+ * Per-ROLE nav visibility, distinct from hasPerm() (which is per-role
+ * action permissions but for individual add/edit/delete buttons). ali
+ * always sees every page. For admin/principal/viewer, reflects whatever
+ * ali toggled for that role via the Permissions page; defaults to
+ * visible if never toggled.
+ */
+function hasPageAccess(pageKey) {
+  const role = currentUserRole();
+  if (role === 'ali') return true;
+  try {
+    const map = JSON.parse(sessionStorage.getItem('myPageVisibility') || '{}');
+    return map[pageKey] !== false; // fail-open: undefined/missing = visible
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Fetches this session's effective permissions from the backend and
  * caches them in sessionStorage so hasPerm() can be used synchronously
  * while rendering the page. Call this once, near the top of each page,
@@ -68,6 +88,9 @@ async function loadMyPermissions() {
     const res = await api('GET', '/api/permissions/me');
     if (res && res.permissions) {
       sessionStorage.setItem('myPermissions', JSON.stringify(res.permissions));
+    }
+    if (res && res.page_visibility) {
+      sessionStorage.setItem('myPageVisibility', JSON.stringify(res.page_visibility));
     }
   } catch (err) {
     // If this fails (e.g. older backend without the route yet), fall back
@@ -90,11 +113,21 @@ async function refreshMyPermissions() {
   if (typeof applyPermissionUI === 'function') {
     try { applyPermissionUI(); } catch (err) { console.warn('applyPermissionUI failed:', err.message); }
   }
+  if (_lastRenderedNavPage) {
+    try { renderNav(_lastRenderedNavPage); } catch (err) { console.warn('renderNav refresh failed:', err.message); }
+  }
 }
 
+let _lastRenderedNavPage = null;
+
 function renderNav(activePage) {
+  _lastRenderedNavPage = activePage;
+  const existing = document.querySelector('nav.navbar');
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-  const pages = [...ALL_PAGES];
+  // Per-role page visibility: hide whole nav links ali has turned off for
+  // this role (dashboard is never filtered — everyone needs somewhere to
+  // land after login).
+  const pages = ALL_PAGES.filter(p => p.key === 'dashboard' || hasPageAccess(p.key));
 
   if (isAliUser()) {
     pages.push({ href: 'permissions.html', label: 'Permissions', key: 'permissions' });
@@ -115,5 +148,10 @@ function renderNav(activePage) {
       </div>
     </nav>
   `;
-  document.body.insertBefore(nav.firstElementChild, document.body.firstChild);
+
+  if (existing) {
+    existing.replaceWith(nav.firstElementChild);
+  } else {
+    document.body.insertBefore(nav.firstElementChild, document.body.firstChild);
+  }
 }

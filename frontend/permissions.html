@@ -48,6 +48,27 @@
     </div>
   </div>
 
+  <!-- Rename Username Modal -->
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="renameModalTitle">Rename Account</h2>
+        <button class="modal-close" onclick="closeRenameModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <input type="hidden" id="renameUserId"/>
+        <div class="form-group">
+          <label>Username *</label>
+          <input type="text" id="renameUsername" placeholder="New username"/>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeRenameModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveRename()">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">Permissions</h1>
@@ -107,6 +128,23 @@
           : 'No account currently has this role';
         const firstUser = roleEntry.users[0];
 
+        const pageVisHtml = `
+          <div class="perm-group-title">Nav Pages Visible</div>
+          <div class="perm-grid">
+            ${(permData.pages || []).map(p => `
+              <div class="perm-row">
+                <span>${p.label}</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" data-role="${roleEntry.role}" data-page="${p.key}"
+                    ${roleEntry.page_visibility && roleEntry.page_visibility[p.key] !== false ? 'checked' : ''}
+                    onchange="togglePageVisibility(this)"/>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
         const groupsHtml = groups.map(g => `
           <div class="perm-group-title">${g.label}</div>
           <div class="perm-grid">
@@ -131,8 +169,12 @@
                 <div class="perm-user-title">${roleLabel}</div>
                 <div class="perm-user-sub">${usernames}</div>
               </div>
-              ${firstUser ? `<button class="btn btn-outline btn-sm" onclick="openPwModal(${firstUser.user_id}, '${firstUser.username}')">Change Password</button>` : ''}
+              ${firstUser ? `<div style="display:flex;gap:8px;">
+                <button class="btn btn-outline btn-sm" onclick="openRenameModal(${firstUser.user_id}, '${firstUser.username}')">Rename</button>
+                <button class="btn btn-outline btn-sm" onclick="openPwModal(${firstUser.user_id}, '${firstUser.username}')">Change Password</button>
+              </div>` : ''}
             </div>
+            ${pageVisHtml}
             ${groupsHtml}
           </div>
         `;
@@ -160,6 +202,29 @@
       }
     }
 
+    async function togglePageVisibility(checkbox) {
+      const role = checkbox.dataset.role;
+      const pageKey = checkbox.dataset.page;
+      const visible = checkbox.checked;
+      checkbox.disabled = true;
+      try {
+        await api('PUT', `/api/permissions/${role}/visibility`, { page_key: pageKey, visible });
+        showToast(`${visible ? 'Showed' : 'Hid'} "${pageKey}" page for ${ROLE_LABELS[role] || role}.`);
+        if (permData) {
+          const entry = permData.roles.find(r => r.role === role);
+          if (entry) {
+            if (!entry.page_visibility) entry.page_visibility = {};
+            entry.page_visibility[pageKey] = visible;
+          }
+        }
+      } catch (e) {
+        checkbox.checked = !visible; // revert on failure
+        showToast(e.message, 'error');
+      } finally {
+        checkbox.disabled = false;
+      }
+    }
+
     function openPwModal(userId, username) {
       document.getElementById('pwUserId').value = userId;
       document.getElementById('pwNewPassword').value = '';
@@ -170,6 +235,31 @@
 
     function closePwModal() {
       document.getElementById('pwModal').classList.remove('open');
+    }
+
+    function openRenameModal(userId, username) {
+      document.getElementById('renameUserId').value = userId;
+      document.getElementById('renameUsername').value = username;
+      document.getElementById('renameModalTitle').textContent = `Rename Account — ${username}`;
+      document.getElementById('renameModal').classList.add('open');
+    }
+
+    function closeRenameModal() {
+      document.getElementById('renameModal').classList.remove('open');
+    }
+
+    async function saveRename() {
+      const userId = document.getElementById('renameUserId').value;
+      const username = document.getElementById('renameUsername').value.trim();
+      if (!username) { showToast('Username is required.', 'error'); return; }
+      try {
+        await api('PUT', `/api/permissions/users/${userId}`, { username });
+        showToast('Username updated.');
+        closeRenameModal();
+        loadPermissions();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
     }
 
     async function savePassword() {

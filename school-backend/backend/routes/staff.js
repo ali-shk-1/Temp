@@ -6,6 +6,95 @@ const { broadcast } = require('../sse');
 router.use(authenticate);
 
 /* ─────────────────────────────────────────
+   LEFT STAFF (must come before /:id routes below so 'left' isn't
+   swallowed as an :id param — same ordering pattern used in students.js)
+───────────────────────────────────────── */
+
+// GET /api/staff/left
+router.get('/left', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM left_staff ORDER BY left_date DESC, name`
+    );
+    res.json({ count: rows.length, former_staff: rows });
+  } catch (err) { next(err); }
+});
+
+// POST /api/staff/:id/leave
+router.post('/:id/leave', can('staff.leave'), async (req, res, next) => {
+  try {
+    const { left_reason } = req.body;
+
+    const { rows: staffRows } = await pool.query(
+      `SELECT s.*, d.title AS designation_title
+       FROM staff s
+       LEFT JOIN designations d ON d.id = s.designation_id
+       WHERE s.staff_id = $1`,
+      [req.params.id]
+    );
+    if (staffRows.length === 0) return res.status(404).json({ error: 'Staff member not found.' });
+
+    const staff = staffRows[0];
+
+    // Unlike students, leaving staff does NOT delete any related records —
+    // just moves the row to left_staff and removes them from the active
+    // staff table. designation/designation_title are snapshotted onto the
+    // left_staff row itself so history is preserved even if the
+    // designation is later renamed or deleted.
+    const { rows } = await pool.query(
+      `INSERT INTO left_staff
+         (old_staff_id, name, cnic, phone_no, salary, designation_id, designation, left_date, left_reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING *`,
+      [staff.staff_id, staff.name, staff.cnic, staff.phone_no, staff.salary,
+       staff.designation_id, staff.designation_title,
+       new Date().toISOString().slice(0, 10), left_reason || null]
+    );
+
+    await pool.query('DELETE FROM staff WHERE staff_id = $1', [req.params.id]);
+
+    res.json({ message: 'Staff member moved to left_staff.', left_staff: rows[0] });
+    broadcast('staff.changed', { action: 'left', staff_id: req.params.id });
+    broadcast('left-staff.changed', { action: 'added', left_staff_id: rows[0].left_staff_id });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/staff/left/:id
+router.put('/left/:id', can('staff.edit'), async (req, res, next) => {
+  try {
+    const { name, cnic, phone_no, salary, designation_id, designation, left_date, left_reason } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required.' });
+
+    const { rows } = await pool.query(
+      `UPDATE left_staff SET
+         name=$1, cnic=$2, phone_no=$3, salary=$4,
+         designation_id=$5, designation=$6, left_date=COALESCE($7, left_date), left_reason=$8
+       WHERE left_staff_id=$9
+       RETURNING *`,
+      [name, cnic || null, phone_no || null, salary || null,
+       designation_id || null, designation || null, left_date || null, left_reason || null,
+       req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Left staff record not found.' });
+    res.json({ message: 'Left staff record updated.', left_staff: rows[0] });
+    broadcast('left-staff.changed', { action: 'updated', left_staff_id: rows[0].left_staff_id });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/staff/left/:id
+router.delete('/left/:id', can('staff.delete'), async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'DELETE FROM left_staff WHERE left_staff_id = $1 RETURNING left_staff_id, name',
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Left staff record not found.' });
+    res.json({ message: 'Left staff record deleted.', left_staff: rows[0] });
+    broadcast('left-staff.changed', { action: 'deleted', left_staff_id: req.params.id });
+  } catch (err) { next(err); }
+});
+
+/* ─────────────────────────────────────────
    DESIGNATIONS (nested resource)
 ───────────────────────────────────────── */
 

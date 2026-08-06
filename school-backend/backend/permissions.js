@@ -38,6 +38,7 @@ const PERMISSION_GROUPS = [
       { key: 'staff.add',          label: 'Add staff' },
       { key: 'staff.edit',         label: 'Edit staff' },
       { key: 'staff.delete',       label: 'Delete staff' },
+      { key: 'staff.leave',        label: 'Mark staff as left' },
       { key: 'staff.designations', label: 'Manage designations' },
     ],
   },
@@ -65,6 +66,21 @@ const PERMISSION_GROUPS = [
 // Flat list of every permission key, in a stable order.
 const PERMISSION_KEYS = PERMISSION_GROUPS.flatMap(g => g.permissions.map(p => p.key));
 
+// Pages that can be individually hidden per-user via user_page_visibility
+// (see routes/permissions.js PUT /api/permissions/users/:user_id/visibility).
+// 'dashboard' is deliberately excluded — every logged-in user always needs
+// somewhere to land after login. 'permissions' and 'users' are ali-only
+// pages, never shown to anyone else regardless of this table, so they're
+// excluded too. Keys and labels mirror ALL_PAGES in frontend/nav.js.
+const PAGE_KEYS = [
+  { key: 'students',      label: 'Students' },
+  { key: 'left-students',  label: 'Left Students' },
+  { key: 'staff',          label: 'Staff' },
+  { key: 'left-staff',     label: 'Left Staff' },
+  { key: 'fees',           label: 'Fees' },
+  { key: 'expenses',       label: 'Expenses' },
+];
+
 // Roles whose permissions are toggle-able via the Permissions page.
 // 'ali' is intentionally excluded — ali always has everything.
 const MANAGEABLE_ROLES = ['admin', 'principal', 'viewer'];
@@ -83,6 +99,7 @@ const DEFAULT_PERMISSIONS = {
     'staff.add': true,
     'staff.edit': true,
     'staff.delete': true,
+    'staff.leave': true,
     'staff.designations': true,
     'fees.add': true,
     'fees.edit': true,
@@ -100,6 +117,7 @@ const DEFAULT_PERMISSIONS = {
     'staff.add': false,         // staff.js is admin-only
     'staff.edit': false,
     'staff.delete': false,
+    'staff.leave': false,
     'staff.designations': false,
     'fees.add': true,
     'fees.edit': true,
@@ -119,6 +137,7 @@ const DEFAULT_PERMISSIONS = {
     'staff.add': false,
     'staff.edit': false,
     'staff.delete': false,
+    'staff.leave': false,
     'staff.designations': false,
     'fees.add': false,
     'fees.edit': false,
@@ -150,6 +169,7 @@ function defaultsForRole(role) {
 module.exports = {
   PERMISSION_GROUPS,
   PERMISSION_KEYS,
+  PAGE_KEYS,
   MANAGEABLE_ROLES,
   DEFAULT_PERMISSIONS,
   isAli,

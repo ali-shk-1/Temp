@@ -2,26 +2,37 @@ const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const pool   = require('../db');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
-const { PERMISSION_GROUPS, PERMISSION_KEYS, MANAGEABLE_ROLES, isAli, defaultsForRole } = require('../permissions');
+const { PERMISSION_GROUPS, PERMISSION_KEYS, PAGE_KEYS, MANAGEABLE_ROLES, isAli, defaultsForRole } = require('../permissions');
 const { broadcast } = require('../sse');
 
 /* ─────────────────────────────────────────
    GET /api/permissions/me  — any authenticated user
-   Returns the calling user's own effective permission map. Used by the
-   frontend (nav.js -> loadMyPermissions()) to decide which add/edit/
-   delete buttons to show on every page. ali gets all-true, viewer gets
-   all-false, admin/principal get whatever ali has toggled (or the
-   hardcoded defaults if nothing has been toggled yet).
+   Returns the calling user's own effective permission map plus which nav
+   pages are visible for their role. Used by the frontend (nav.js) to
+   decide which add/edit/delete buttons AND which whole nav links to show.
+   ali gets all-true / all-visible, viewer gets all-false permissions (but
+   still whatever page visibility ali set), admin/principal get whatever
+   ali has toggled (or the hardcoded defaults if nothing's been toggled).
 ───────────────────────────────────────── */
 router.get('/me', authenticate, async (req, res, next) => {
   try {
     const role = req.user && req.user.role ? String(req.user.role).toLowerCase() : null;
     if (!role) return res.status(403).json({ error: 'Access denied.' });
 
+    const page_visibility = {};
+    PAGE_KEYS.forEach(p => { page_visibility[p.key] = true; });
+    if (!isAli(role) && MANAGEABLE_ROLES.includes(role)) {
+      const { rows: visRows } = await pool.query(
+        'SELECT page_key, visible FROM role_page_visibility WHERE role_name = $1',
+        [role]
+      );
+      visRows.forEach(v => { page_visibility[v.page_key] = v.visible; });
+    }
+
     if (isAli(role) || !MANAGEABLE_ROLES.includes(role)) {
       // ali -> all true. Any other/unknown role (shouldn't normally
       // happen) -> safe default of all false.
-      return res.json({ role, permissions: defaultsForRole(role) });
+      return res.json({ role, permissions: defaultsForRole(role), page_visibility });
     }
 
     const { rows } = await pool.query(
@@ -33,7 +44,7 @@ router.get('/me', authenticate, async (req, res, next) => {
     PERMISSION_KEYS.forEach(key => { permissions[key] = defaults[key]; });
     rows.forEach(r => { permissions[r.permission_key] = r.allowed; });
 
-    res.json({ role, permissions });
+    res.json({ role, permissions, page_visibility });
   } catch (err) {
     next(err);
   }
@@ -45,15 +56,20 @@ router.use(authenticate, authorize('ali'));
 
 /* ─────────────────────────────────────────
    GET /api/permissions
-   Returns the full permission matrix for admin, principal, and viewer,
-   plus the usernames currently holding each of those roles (so the
-   Permissions page can show "Admin — admin", "Principal — principal",
-   "Viewer — viewer", and let ali reset a password for any of them).
+   Returns the full permission matrix AND page-visibility matrix for
+   admin, principal, and viewer, plus the username currently holding each
+   role, so the Permissions page can show "Admin — admin", let ali rename
+   the account or reset its password, and toggle both action permissions
+   and whole-page nav visibility per role.
 ───────────────────────────────────────── */
 router.get('/', async (req, res, next) => {
   try {
     const { rows: permRows } = await pool.query(
       'SELECT role_name, permission_key, allowed FROM role_permissions'
+    );
+
+    const { rows: visRows } = await pool.query(
+      'SELECT role_name, page_key, visible FROM role_page_visibility'
     );
 
     const { rows: userRows } = await pool.query(
@@ -79,14 +95,26 @@ router.get('/', async (req, res, next) => {
           : defaults[key];
       });
 
+      const visStored = {};
+      visRows
+        .filter(v => v.role_name === role)
+        .forEach(v => { visStored[v.page_key] = v.visible; });
+      const page_visibility = {};
+      PAGE_KEYS.forEach(p => {
+        page_visibility[p.key] = Object.prototype.hasOwnProperty.call(visStored, p.key)
+          ? visStored[p.key]
+          : true; // fail-open: no override row means visible
+      });
+
       return {
         role,
         users: userRows.filter(u => u.role === role),
         permissions,
+        page_visibility,
       };
     });
 
-    res.json({ groups: PERMISSION_GROUPS, roles: result });
+    res.json({ groups: PERMISSION_GROUPS, pages: PAGE_KEYS, roles: result });
   } catch (err) {
     next(err);
   }
@@ -95,7 +123,8 @@ router.get('/', async (req, res, next) => {
 /* ─────────────────────────────────────────
    PUT /api/permissions/:role
    Body: { permission_key, allowed }
-   Toggle a single permission for admin, principal, or viewer.
+   Toggle a single action permission (add/edit/delete/etc.) for admin,
+   principal, or viewer.
 ───────────────────────────────────────── */
 router.put('/:role', async (req, res, next) => {
   try {
@@ -122,6 +151,90 @@ router.put('/:role', async (req, res, next) => {
 
     res.json({ message: 'Permission updated.', role, permission_key, allowed });
     broadcast('permissions.changed', { role, permission_key, allowed });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ─────────────────────────────────────────
+   PUT /api/permissions/:role/visibility
+   Body: { page_key, visible }
+   Toggle whether an entire nav page (e.g. "Staff") is shown at all for
+   every account holding this role. Distinct from PUT /:role above,
+   which toggles individual add/edit/delete actions — this hides the
+   whole page/link instead.
+───────────────────────────────────────── */
+router.put('/:role/visibility', async (req, res, next) => {
+  try {
+    const role = String(req.params.role || '').toLowerCase();
+    const { page_key, visible } = req.body;
+
+    if (!MANAGEABLE_ROLES.includes(role)) {
+      return res.status(400).json({ error: `role must be one of: ${MANAGEABLE_ROLES.join(', ')}.` });
+    }
+    if (!PAGE_KEYS.some(p => p.key === page_key)) {
+      return res.status(400).json({ error: 'Unknown page_key.' });
+    }
+    if (typeof visible !== 'boolean') {
+      return res.status(400).json({ error: 'visible must be true or false.' });
+    }
+
+    await pool.query(
+      `INSERT INTO role_page_visibility (role_name, page_key, visible, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (role_name, page_key)
+       DO UPDATE SET visible = EXCLUDED.visible, updated_at = NOW()`,
+      [role, page_key, visible]
+    );
+
+    res.json({ message: 'Page visibility updated.', role, page_key, visible });
+    broadcast('permissions.changed', { role, page_key, visible, action: 'visibility_updated' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ─────────────────────────────────────────
+   PUT /api/permissions/users/:user_id
+   Body: { username }
+   ali renames an existing admin/principal/viewer account's username.
+   Each manageable role corresponds to exactly one login account (created
+   via create-principal.js / create-ali-viewer.js / seed.js), so this is
+   a rename, not account creation — the role itself is the identity.
+   Password changes go through POST /users/:user_id/password below.
+───────────────────────────────────────── */
+router.put('/users/:user_id', async (req, res, next) => {
+  try {
+    const { username } = req.body;
+    if (!username || !username.trim()) {
+      return res.status(400).json({ error: 'username is required.' });
+    }
+
+    const { rows: targetRows } = await pool.query(
+      `SELECT u.user_id, r.role_name AS role
+       FROM users u JOIN roles r ON r.role_id = u.role_id
+       WHERE u.user_id = $1`,
+      [req.params.user_id]
+    );
+    if (targetRows.length === 0) return res.status(404).json({ error: 'User not found.' });
+    if (!MANAGEABLE_ROLES.includes(String(targetRows[0].role).toLowerCase())) {
+      return res.status(403).json({ error: 'Can only edit admin, principal, or viewer accounts.' });
+    }
+
+    const { rows: dupe } = await pool.query(
+      'SELECT user_id FROM users WHERE username = $1 AND user_id != $2',
+      [username.trim(), req.params.user_id]
+    );
+    if (dupe.length > 0) return res.status(409).json({ error: `Username "${username}" is already taken.` });
+
+    const { rows } = await pool.query(
+      `UPDATE users SET username = $1 WHERE user_id = $2
+       RETURNING user_id, username, role_id, is_active`,
+      [username.trim(), req.params.user_id]
+    );
+
+    res.json({ message: 'Username updated.', user: rows[0] });
+    broadcast('permissions.changed', { action: 'user_updated', user_id: req.params.user_id });
   } catch (err) {
     next(err);
   }

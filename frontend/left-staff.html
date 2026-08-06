@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+  <title>Left Staff — School Management</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <!-- Edit Left Staff Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Edit Left Staff Record</h2>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <input type="hidden" id="leftStaffId"/>
+        <div class="form-row">
+          <div class="form-group" style="grid-column:1/-1;">
+            <label>Full Name *</label>
+            <input type="text" id="lsName" required/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>CNIC</label>
+            <input type="text" id="lsCnic" placeholder="xxxxx-xxxxxxx-x"/>
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" id="lsPhone" placeholder="03xxxxxxxxx"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Salary (Rs.)</label>
+            <input type="number" id="lsSalary" placeholder="0.00" step="0.01"/>
+          </div>
+          <div class="form-group">
+            <label>Designation</label>
+            <input type="text" id="lsDesignation" placeholder="e.g. Teacher"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Left Date</label>
+            <input type="date" id="lsLeftDate"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <input type="text" id="lsReason" placeholder="Reason for leaving"/>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveLeftStaff()">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Left Staff</h1>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th><th>Designation</th><th>CNIC</th><th>Phone</th>
+              <th>Salary</th><th>Left Date</th><th>Reason</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="leftStaffBody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script src="events.js"></script>
+  <script>
+    checkAuth();
+    renderNav('left-staff');
+
+    let allLeftStaff = [];
+
+    async function loadLeftStaff() {
+      const tbody = document.getElementById('leftStaffBody');
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
+      try {
+        const res = await api('GET', '/api/staff/left');
+        allLeftStaff = normalizeList(res, ['former_staff', 'staff', 'data']);
+        renderTable();
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load left staff.</td></tr>';
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('leftStaffBody');
+      if (!allLeftStaff.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">No left staff found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = allLeftStaff.map(s => `
+        <tr>
+          <td><strong>${s.name}</strong></td>
+          <td>${s.designation || '—'}</td>
+          <td>${s.cnic || '—'}</td>
+          <td>${s.phone_no || '—'}</td>
+          <td>${formatMoney(s.salary)}</td>
+          <td>${formatDate(s.left_date)}</td>
+          <td>${s.left_reason || '—'}</td>
+          <td>
+            ${hasPerm('staff.edit') ? `<button class="btn btn-outline btn-sm" onclick="editLeftStaff(${s.left_staff_id})">Edit</button>` : ''}
+            ${hasPerm('staff.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteLeftStaff(${s.left_staff_id})">Delete</button>` : ''}
+            ${!hasPerm('staff.edit') && !hasPerm('staff.delete') ? '—' : ''}
+          </td>
+        </tr>`).join('');
+    }
+
+    function editLeftStaff(id) {
+      const s = allLeftStaff.find(x => x.left_staff_id === id);
+      if (!s) return;
+      document.getElementById('leftStaffId').value = s.left_staff_id;
+      document.getElementById('lsName').value = s.name || '';
+      document.getElementById('lsCnic').value = s.cnic || '';
+      document.getElementById('lsPhone').value = s.phone_no || '';
+      document.getElementById('lsSalary').value = s.salary || '';
+      document.getElementById('lsDesignation').value = s.designation || '';
+      document.getElementById('lsLeftDate').value = s.left_date ? s.left_date.slice(0, 10) : '';
+      document.getElementById('lsReason').value = s.left_reason || '';
+      document.getElementById('modalOverlay').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('open');
+    }
+
+    async function saveLeftStaff() {
+      const id = document.getElementById('leftStaffId').value;
+      const body = {
+        name: document.getElementById('lsName').value.trim(),
+        cnic: document.getElementById('lsCnic').value.trim(),
+        phone_no: document.getElementById('lsPhone').value.trim(),
+        salary: parseFloat(document.getElementById('lsSalary').value) || 0,
+        designation: document.getElementById('lsDesignation').value.trim(),
+        left_date: document.getElementById('lsLeftDate').value || null,
+        left_reason: document.getElementById('lsReason').value.trim(),
+      };
+      if (!body.name) { showToast('Name is required.', 'error'); return; }
+      try {
+        await api('PUT', `/api/staff/left/${id}`, body);
+        showToast('Left staff record updated.');
+        closeModal();
+        loadLeftStaff();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function deleteLeftStaff(id) {
+      const s = allLeftStaff.find(x => x.left_staff_id === id);
+      if (!confirm(`Delete left-staff record for "${s ? s.name : 'this person'}"? This cannot be undone.`)) return;
+      try {
+        await api('DELETE', `/api/staff/left/${id}`);
+        showToast('Left staff record deleted.');
+        loadLeftStaff();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    (async function init() {
+      await loadMyPermissions();
+      await loadLeftStaff();
+      connectLiveUpdates({
+        'left-staff.changed': () => loadLeftStaff(),
+        'permissions.changed': () => refreshMyPermissions(),
+      });
+    })();
+  </script>
+</body>
+</html>

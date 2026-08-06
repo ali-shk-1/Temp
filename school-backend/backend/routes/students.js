@@ -113,6 +113,74 @@ router.get('/left', async (req, res, next) => {
   }
 });
 
+// PUT /api/students/left/:id — full edit of a left-student record
+router.put('/left/:id', can('students.edit'), async (req, res, next) => {
+  try {
+    const { roll_no, section, class: cls, first_name, last_name,
+            father_name, contact_1, contact_2, email, photo_url, address,
+            admission_date, fee_start_month, left_date, left_reason } = req.body;
+
+    if (!first_name || !last_name) {
+      return res.status(400).json({ error: 'first_name and last_name are required.' });
+    }
+    const rollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
+    if (rollNo != null && (!Number.isInteger(rollNo) || rollNo <= 0)) {
+      return res.status(400).json({ error: 'Roll No must be a positive integer if provided.' });
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email address.' });
+    }
+    const normalizedFeeStart = normalizeMonthInput(fee_start_month);
+    if (fee_start_month && !normalizedFeeStart) {
+      return res.status(400).json({ error: 'fee_start_month must be in YYYY-MM format.' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE left_students SET
+         roll_no=$1, section=$2, class=$3, first_name=$4, last_name=$5,
+         father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
+         admission_date=$12, fee_start_month=$13, left_date=COALESCE($14, left_date), left_reason=$15
+       WHERE left_student_id=$16
+       RETURNING *`,
+      [rollNo, section || null, cls || null, first_name, last_name,
+       father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
+       admission_date || null, normalizedFeeStart || null, left_date || null, left_reason || null,
+       req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Left student record not found.' });
+    res.json({ message: 'Left student record updated.', former_student: rows[0] });
+    broadcast('left-students.changed', { action: 'updated', left_student_id: rows[0].left_student_id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/students/left/:id
+router.delete('/left/:id', can('students.delete'), async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'DELETE FROM left_students WHERE left_student_id = $1 RETURNING left_student_id, first_name, last_name, photo_url',
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Left student record not found.' });
+
+    const photoUrl = rows[0].photo_url;
+    if (photoUrl && photoUrl.startsWith('/uploads/')) {
+      const photoPath = path.join(uploadsDir, path.basename(photoUrl));
+      fs.unlink(photoPath, (err) => {
+        if (err && err.code !== 'ENOENT') {
+          console.error('Failed to delete left-student photo:', photoPath, err.message);
+        }
+      });
+    }
+
+    res.json({ message: 'Left student record deleted.', former_student: rows[0] });
+    broadcast('left-students.changed', { action: 'deleted', left_student_id: req.params.id });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/:id/leave', can('students.leave'), async (req, res, next) => {
   const client = await pool.connect();
   try {

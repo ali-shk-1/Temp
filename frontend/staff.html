@@ -136,6 +136,7 @@
     function applyPermissionUI() {
       document.getElementById('addStaffBtn').style.display = hasPerm('staff.add') ? '' : 'none';
       document.getElementById('desigBtn').style.display = hasPerm('staff.designations') ? '' : 'none';
+      renderTable(allStaff); // re-render rows so Leave/Edit/Delete buttons reflect updated perms
     }
 
     async function loadAll() {
@@ -186,8 +187,9 @@
           <td>${formatMoney(s.salary)}</td>
           <td>
             ${hasPerm('staff.edit') ? `<button class="btn btn-outline btn-sm" onclick="editStaff(${s.staff_id})">Edit</button>` : ''}
+            ${hasPerm('staff.leave') ? `<button class="btn btn-warning btn-sm" onclick="leaveStaffMember(${s.staff_id})">Leave</button>` : ''}
             ${hasPerm('staff.delete') ? `<button class="btn btn-danger btn-sm" onclick="deleteStaff(${s.staff_id})">Delete</button>` : ''}
-            ${!hasPerm('staff.edit') && !hasPerm('staff.delete') ? '—' : ''}
+            ${!hasPerm('staff.edit') && !hasPerm('staff.leave') && !hasPerm('staff.delete') ? '—' : ''}
           </td>
         </tr>`).join('');
     }
@@ -253,6 +255,17 @@
       try {
         await api('DELETE', `/api/staff/${id}`);
         showToast('Staff deleted.');
+        loadStaff();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function leaveStaffMember(id) {
+      const s = allStaff.find(x => x.staff_id === id);
+      const name = s ? s.name : 'this staff member';
+      if (!confirm(`Mark "${name}" as left? Their record moves to Left Staff.`)) return;
+      try {
+        await api('POST', `/api/staff/${id}/leave`, { left_reason: 'Left employment' });
+        showToast('Staff member moved to left staff records.');
         loadStaff();
       } catch(e) { showToast(e.message, 'error'); }
     }
