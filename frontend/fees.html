@@ -218,6 +218,7 @@
 
   <script src="api.js"></script>
   <script src="nav.js"></script>
+  <script src="events.js"></script>
   <script>
     checkAuth();
     renderNav('fees');
@@ -273,6 +274,16 @@
       await loadStudents();
       await loadMonthlyRecords();
       loadStats();
+      connectLiveUpdates({
+        'fees.changed': () => {
+          loadMonthlyRecords();
+          loadStats();
+          loadDailyRecords();
+          loadMonthlyDefaulters();
+        },
+        'students.changed': () => loadStudents(),
+        'permissions.changed': () => refreshMyPermissions(),
+      });
     }
 
     async function loadStudents() {
@@ -845,7 +856,7 @@
 
     <div class="footer">
       <div class="sign">Received By</div>
-      <div class="sign">Parent / Guardian Signature</div>
+      <div class="sign">Stamp</div>
     </div>
   </div>
   <script>

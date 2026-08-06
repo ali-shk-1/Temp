@@ -13,6 +13,8 @@ const dashboardRoutes = require('./routes/dashboard');
 const permissionRoutes = require('./routes/permissions');
 const errorHandler    = require('./middleware/errorHandler');
 const pool            = require('./db');
+const { authenticate } = require('./middleware/authMiddleware');
+const { addClient }   = require('./sse');
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -52,6 +54,11 @@ app.use('/api/fees',      feeRoutes);
 app.use('/api/expenses',  expenseRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/permissions', permissionRoutes);
+
+/* ── Live updates (Server-Sent Events) ─── */
+app.get('/api/events', authenticate, (req, res) => {
+  addClient(req, res);
+});
 
 /* ── 404 Handler ───────────────────────── */
 app.use((req, res) => {

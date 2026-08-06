@@ -77,6 +77,21 @@ async function loadMyPermissions() {
   }
 }
 
+/**
+ * Called when a live 'permissions.changed' event arrives (see events.js)
+ * for a non-ali user's own role. Re-fetches the permission map and, if
+ * the current page defines applyPermissionUI() (most pages do, to
+ * show/hide their add/edit/delete buttons), re-runs it so buttons update
+ * without a manual refresh. Pages that don't define it are unaffected —
+ * this is a no-op for them, same as before this feature existed.
+ */
+async function refreshMyPermissions() {
+  await loadMyPermissions();
+  if (typeof applyPermissionUI === 'function') {
+    try { applyPermissionUI(); } catch (err) { console.warn('applyPermissionUI failed:', err.message); }
+  }
+}
+
 function renderNav(activePage) {
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const pages = [...ALL_PAGES];

@@ -133,6 +133,7 @@
 
   <script src="api.js"></script>
   <script src="nav.js"></script>
+  <script src="events.js"></script>
   <script>
     checkAuth();
     renderNav('expenses');
@@ -175,6 +176,14 @@
       applyPermissionUI();
       await loadCategories();
       await Promise.all([loadExpenses(), loadStats()]);
+      connectLiveUpdates({
+        'expenses.changed': () => {
+          loadExpenses();
+          loadStats();
+        },
+        'expense-categories.changed': () => loadCategories(),
+        'permissions.changed': () => refreshMyPermissions(),
+      });
     }
 
     async function loadCategories() {

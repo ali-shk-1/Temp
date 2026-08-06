@@ -124,6 +124,7 @@
 
   <script src="api.js"></script>
   <script src="nav.js"></script>
+  <script src="events.js"></script>
   <script>
     checkAuth();
     renderNav('staff');
@@ -301,6 +302,11 @@
     }
 
     loadAll();
+    connectLiveUpdates({
+      'staff.changed': () => loadStaff(),
+      'designations.changed': () => loadDesignations(),
+      'permissions.changed': () => refreshMyPermissions(),
+    });
   </script>
 </body>
 </html>

@@ -40,6 +40,7 @@
   </div>
   <script src="api.js"></script>
   <script src="nav.js"></script>
+  <script src="events.js"></script>
   <script>
     checkAuth();
     renderNav('left-students');
@@ -68,6 +69,9 @@
       }
     }
     loadLeftStudents();
+    connectLiveUpdates({
+      'left-students.changed': () => loadLeftStudents(),
+    });
   </script>
 </body>
 </html>

@@ -9,11 +9,22 @@ const { isAli, defaultsForRole } = require('../permissions');
 const authenticate = (req, res, next) => {
   const authHeader = req.headers['authorization'];
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided. Access denied.' });
+  // Normal path: Authorization: Bearer <token> header (used by every
+  // regular fetch/XHR call via api.js).
+  let token = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && typeof req.query.token === 'string' && req.query.token) {
+    // Fallback for EventSource (GET /api/events?token=...), which cannot
+    // set custom request headers. Only relevant for that one route in
+    // practice, but kept generic here rather than special-cased so any
+    // future browser API with the same limitation can reuse it.
+    token = req.query.token;
   }
 
-  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided. Access denied.' });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { authenticate, authorize, can } = require('../middleware/authMiddleware');
+const { broadcast } = require('../sse');
 
 router.use(authenticate);
 
@@ -29,6 +30,7 @@ router.post('/categories', can('expenses.categories'), async (req, res, next) =>
       [category_name]
     );
     res.status(201).json(rows[0]);
+    broadcast('expense-categories.changed', { action: 'added', id: rows[0].category_id });
   } catch (err) { next(err); }
 });
 
@@ -41,6 +43,7 @@ router.delete('/categories/:id', can('expenses.categories'), async (req, res, ne
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Category not found.' });
     res.json({ message: 'Category deleted.' });
+    broadcast('expense-categories.changed', { action: 'deleted', id: req.params.id });
   } catch (err) { next(err); }
 });
 
@@ -116,6 +119,7 @@ router.post('/', can('expenses.add'), async (req, res, next) => {
       [category_id || null, amount, description || null, created_at || new Date()]
     );
     res.status(201).json({ message: 'Expense recorded.', expense: rows[0] });
+    broadcast('expenses.changed', { action: 'added', expense_id: rows[0].expense_id });
   } catch (err) { next(err); }
 });
 
@@ -133,6 +137,7 @@ router.put('/:id', can('expenses.edit'), async (req, res, next) => {
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Expense not found.' });
     res.json({ message: 'Expense updated.', expense: rows[0] });
+    broadcast('expenses.changed', { action: 'updated', expense_id: rows[0].expense_id });
   } catch (err) { next(err); }
 });
 
@@ -145,6 +150,7 @@ router.delete('/:id', can('expenses.delete'), async (req, res, next) => {
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Expense not found.' });
     res.json({ message: 'Expense deleted.' });
+    broadcast('expenses.changed', { action: 'deleted', expense_id: rows[0].expense_id });
   } catch (err) { next(err); }
 });
 

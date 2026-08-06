@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db');
 const { authenticate, authorize, can } = require('../middleware/authMiddleware');
 const { sendMail } = require('../utils/mailer');
+const { broadcast } = require('../sse');
 
 router.use(authenticate);
 
@@ -104,6 +105,7 @@ router.post('/', can('fees.add'), async (req, res, next) => {
     }
 
     res.status(201).json({ message: 'Fee payment recorded.', payment });
+    broadcast('fees.changed', { action: 'added', payment_id: payment.payment_id });
   } catch (err) { next(err); }
 });
 
@@ -347,6 +349,7 @@ router.put('/:payment_id', can('fees.edit'), async (req, res, next) => {
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Payment record not found.' });
     res.json({ message: 'Payment updated.', payment: rows[0] });
+    broadcast('fees.changed', { action: 'updated', payment_id: rows[0].payment_id });
   } catch (err) { next(err); }
 });
 
@@ -358,6 +361,7 @@ router.delete('/:payment_id', can('fees.delete'), async (req, res, next) => {
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Payment record not found.' });
     res.json({ message: 'Payment deleted.' });
+    broadcast('fees.changed', { action: 'deleted', payment_id: rows[0].payment_id });
   } catch (err) { next(err); }
 });
 

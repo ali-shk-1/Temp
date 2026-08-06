@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { authenticate, authorize, can } = require('../middleware/authMiddleware');
+const { broadcast } = require('../sse');
 
 router.use(authenticate);
 
@@ -27,6 +28,7 @@ router.post('/designations', can('staff.designations'), async (req, res, next) =
       [title]
     );
     res.status(201).json(rows[0]);
+    broadcast('designations.changed', { action: 'added', id: rows[0].id });
   } catch (err) { next(err); }
 });
 
@@ -39,6 +41,7 @@ router.delete('/designations/:id', can('staff.designations'), async (req, res, n
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Designation not found.' });
     res.json({ message: 'Designation deleted.' });
+    broadcast('designations.changed', { action: 'deleted', id: req.params.id });
   } catch (err) { next(err); }
 });
 
@@ -105,6 +108,7 @@ router.post('/', can('staff.add'), async (req, res, next) => {
       [name, cnic, phone_no || null, salary || null, designation_id || null]
     );
     res.status(201).json({ message: 'Staff member added.', staff: rows[0] });
+    broadcast('staff.changed', { action: 'added', staff_id: rows[0].staff_id });
   } catch (err) { next(err); }
 });
 
@@ -126,6 +130,7 @@ router.put('/:id', can('staff.edit'), async (req, res, next) => {
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Staff member not found.' });
     res.json({ message: 'Staff member updated.', staff: rows[0] });
+    broadcast('staff.changed', { action: 'updated', staff_id: rows[0].staff_id });
   } catch (err) { next(err); }
 });
 
@@ -138,6 +143,7 @@ router.delete('/:id', can('staff.delete'), async (req, res, next) => {
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Staff member not found.' });
     res.json({ message: 'Staff member deleted.', staff: rows[0] });
+    broadcast('staff.changed', { action: 'deleted', staff_id: rows[0].staff_id });
   } catch (err) { next(err); }
 });
 

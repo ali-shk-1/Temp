@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const pool   = require('../db');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 const { PERMISSION_GROUPS, PERMISSION_KEYS, MANAGEABLE_ROLES, isAli, defaultsForRole } = require('../permissions');
+const { broadcast } = require('../sse');
 
 /* ─────────────────────────────────────────
    GET /api/permissions/me  — any authenticated user
@@ -120,6 +121,7 @@ router.put('/:role', async (req, res, next) => {
     );
 
     res.json({ message: 'Permission updated.', role, permission_key, allowed });
+    broadcast('permissions.changed', { role, permission_key, allowed });
   } catch (err) {
     next(err);
   }

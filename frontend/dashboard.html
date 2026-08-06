@@ -94,6 +94,7 @@
 
   <script src="api.js"></script>
   <script src="nav.js"></script>
+  <script src="events.js"></script>
   <script>
     checkAuth();
     renderNav('dashboard');
@@ -329,6 +330,14 @@
       loadMonthlySummary(),
       loadRecentExpenses()
     ]);
+
+    connectLiveUpdates({
+      'students.changed': () => { loadStats(); loadDefaulters(); },
+      'left-students.changed': () => loadStats(),
+      'fees.changed': () => { loadStats(); loadTodayFees(); loadDefaulters(); loadMonthlySummary(); },
+      'expenses.changed': () => { loadStats(); loadRecentExpenses(); loadMonthlySummary(); },
+      'staff.changed': () => loadStats(),
+    });
   </script>
 </body>
 </html>

@@ -4,6 +4,7 @@ const path   = require('path');
 const multer = require('multer');
 const pool   = require('../db');
 const { authenticate, authorize, can } = require('../middleware/authMiddleware');
+const { broadcast } = require('../sse');
 
 const allowedClasses = new Set([
   'playgroup', 'nursery', 'prep',
@@ -145,6 +146,8 @@ router.post('/:id/leave', can('students.leave'), async (req, res, next) => {
 
     await client.query('COMMIT');
     res.json({ message: 'Student moved to left_students.', student_id: req.params.id });
+    broadcast('students.changed', { action: 'left', student_id: req.params.id });
+    broadcast('left-students.changed', { action: 'added', student_id: req.params.id });
   } catch (err) {
     await client.query('ROLLBACK');
     next(err);
@@ -237,6 +240,7 @@ router.post('/', can('students.add'), async (req, res, next) => {
     );
 
     res.status(201).json({ message: 'Student added.', student: rows[0] });
+    broadcast('students.changed', { action: 'added', student_id: rows[0].student_id });
   } catch (err) {
     next(err);
   }
@@ -290,6 +294,7 @@ router.put('/:id', can('students.edit'), async (req, res, next) => {
 
     if (rows.length === 0) return res.status(404).json({ error: 'Student not found.' });
     res.json({ message: 'Student updated.', student: rows[0] });
+    broadcast('students.changed', { action: 'updated', student_id: rows[0].student_id });
   } catch (err) {
     next(err);
   }
@@ -333,6 +338,7 @@ router.delete('/:id', can('students.delete'), async (req, res, next) => {
     }
 
     res.json({ message: 'Student deleted.', student: rows[0] });
+    broadcast('students.changed', { action: 'deleted', student_id: rows[0].student_id });
   } catch (err) {
     await client.query('ROLLBACK');
     next(err);
