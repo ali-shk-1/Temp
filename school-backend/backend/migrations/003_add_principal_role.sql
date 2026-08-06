@@ -1,10 +1,16 @@
 -- Adds a new "principal" role.
 --
--- The principal role is authorized for fee-related actions only
--- (record / edit / delete fee payments) — the same fee rights as
--- admin — but does NOT get admin's other rights (managing staff,
--- students, expense categories, or other user accounts). See
--- routes/fees.js `authorize(...)` calls for where this is enforced.
+-- At the time this migration was written, principal was authorized for
+-- fee-related actions only via routes/fees.js `authorize('admin',
+-- 'principal')`, and did not get admin's other rights. That has since
+-- changed: routes now use the granular can() middleware backed by
+-- role_permissions (see migration 008), and principal's current
+-- defaults there (permissions.js DEFAULT_PERMISSIONS.principal) also
+-- grant full student rights (add/edit/delete/leave) alongside fees, on
+-- top of ali being able to toggle any of it per-role from the
+-- Permissions page. This comment is kept for history; for current
+-- effective permissions, see permissions.js / the role_permissions table
+-- rather than this file.
 --
 -- Run this once against your existing database:
 --   psql -U postgres -d school_db -f migrations/003_add_principal_role.sql

@@ -1,11 +1,15 @@
 /**
  * create-principal.js — creates (or resets) the "principal" login account.
  *
- * The principal role is scoped to fee management only: recording,
- * editing, and deleting fee payments — the same fee rights admin has.
- * It does NOT get admin's other rights (staff, students, expense
- * categories, or managing other user accounts). This is enforced in
- * routes/fees.js via authorize('admin', 'principal') / authorize('admin', 'principal').
+ * Principal's actual permissions are no longer hardcoded in the route
+ * files — they're granular and DB-backed (see permissions.js and the
+ * role_permissions table, added in migration 008). By default principal
+ * gets full student rights (add/edit/delete/leave) and fee rights, but
+ * NOT staff or expense-category rights. Every one of those defaults is
+ * individually toggleable by ali from the Permissions page, so the real
+ * source of truth for what principal can currently do is the
+ * role_permissions table (or DEFAULT_PERMISSIONS.principal in
+ * permissions.js if no row has been set yet), not this comment.
  *
  * Usage:
  *   node create-principal.js                        -> username: principal, password: Principal@123

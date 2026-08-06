@@ -34,7 +34,9 @@ router.post('/categories', can('expenses.categories'), async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
-// DELETE /api/expenses/categories/:id  — admin only
+// DELETE /api/expenses/categories/:id — gated by can('expenses.categories'),
+// which defaults to admin-only but is toggleable per-role by ali from the
+// Permissions page (see permissions.js DEFAULT_PERMISSIONS).
 router.delete('/categories/:id', can('expenses.categories'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -141,7 +143,9 @@ router.put('/:id', can('expenses.edit'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/expenses/:id  — admin only
+// DELETE /api/expenses/:id — gated by can('expenses.delete'), which
+// defaults to admin-only but is toggleable per-role by ali from the
+// Permissions page (see permissions.js DEFAULT_PERMISSIONS).
 router.delete('/:id', can('expenses.delete'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(

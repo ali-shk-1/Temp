@@ -20,15 +20,33 @@ function normalizeMonthInput(value) {
 }
 
 router.post('/', can('fees.add'), async (req, res, next) => {
+  const client = await pool.connect();
   try {
     const { student_id, academic_month, amount_due, amount_paid } = req.body;
     if (!student_id || !academic_month || amount_due == null) {
       return res.status(400).json({ error: 'student_id, academic_month, and amount_due are required.' });
     }
-    const studentCheck = await pool.query(
+
+    await client.query('BEGIN');
+
+    // Serialize concurrent submissions for the same student so the
+    // "does a fee record already exist for this month" check below and
+    // the insert that follows can't race. Without this, two
+    // near-simultaneous requests (double-click, or two staff members
+    // recording payment at once) could both see "no existing row" and
+    // both insert with the full amount_due, silently duplicating the
+    // due amount in monthly totals. pg_advisory_xact_lock is held only
+    // for this transaction and auto-released on COMMIT/ROLLBACK — no
+    // schema change needed, and it doesn't conflict with the
+    // intentional "second payment same month" pattern below, since that
+    // path still runs, just one request at a time per student.
+    await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [student_id]);
+
+    const studentCheck = await client.query(
       'SELECT student_id FROM students WHERE student_id = $1', [student_id]
     );
     if (studentCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Student not found.' });
     }
 
@@ -36,7 +54,7 @@ router.post('/', can('fees.add'), async (req, res, next) => {
     // duplicate the due amount; record only the paid amount as an extra
     // payment. This preserves daily payment history by payment_date while
     // keeping monthly totals tied to the fee's academic_month.
-    const existingMonth = await pool.query(
+    const existingMonth = await client.query(
       `SELECT 1 FROM fee_payments
        WHERE student_id = $1
          AND DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $2::DATE)
@@ -46,7 +64,7 @@ router.post('/', can('fees.add'), async (req, res, next) => {
     const insertedDue = existingMonth.rows.length ? 0 : amount_due;
     const insertedPaid = amount_paid || 0;
 
-    const { rows } = await pool.query(
+    const { rows } = await client.query(
       `INSERT INTO fee_payments (student_id, academic_month, amount_due, amount_paid)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
@@ -55,16 +73,40 @@ router.post('/', can('fees.add'), async (req, res, next) => {
 
     // Re-fetch joined with student info so the client has everything it
     // needs to render/print a receipt without a second round-trip.
-    const receipt = await pool.query(
-      `SELECT fp.*,
-              (fp.amount_due - fp.amount_paid) AS balance,
+    //
+    // amount_due/amount_paid/balance here are the MONTH'S TOTALS across
+    // every fee_payments row for this student+month, not just the row
+    // just inserted. That matters because a second-or-later payment in
+    // the same month is deliberately inserted with amount_due=0 (see
+    // insertedDue above) so monthly report totals aren't double-counted
+    // — but showing that row's own amount_due=0 / negative balance on
+    // the receipt itself made it look like the student owed nothing then
+    // went negative, which is wrong and alarming to read. payment_id and
+    // payment_date still identify the specific payment just made.
+    const receipt = await client.query(
+      `SELECT fp.payment_id, fp.student_id, fp.academic_month, fp.payment_date,
+              fp.amount_paid AS this_payment_amount,
+              month_totals.amount_due, month_totals.amount_paid,
+              (month_totals.amount_due - month_totals.amount_paid) AS balance,
               s.roll_no, s.first_name, s.last_name, s.class, s.section,
               s.father_name, s.contact_1, s.contact_2, s.address, s.email, s.photo_url
        FROM fee_payments fp
        JOIN students s ON s.student_id = fp.student_id
+       JOIN (
+         SELECT student_id,
+                DATE_TRUNC('month', academic_month) AS month,
+                SUM(amount_due)  AS amount_due,
+                SUM(amount_paid) AS amount_paid
+         FROM fee_payments
+         WHERE student_id = $2
+           AND DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $3::DATE)
+         GROUP BY student_id, DATE_TRUNC('month', academic_month)
+       ) month_totals ON month_totals.student_id = fp.student_id
        WHERE fp.payment_id = $1`,
-      [rows[0].payment_id]
+      [rows[0].payment_id, student_id, academic_month]
     );
+
+    await client.query('COMMIT');
 
     const payment = receipt.rows[0];
     if (payment && payment.email && Number(payment.amount_paid) > 0) {
@@ -75,9 +117,27 @@ router.post('/', can('fees.add'), async (req, res, next) => {
       const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
       const [amYear, amMonth] = String(payment.academic_month).split('-');
       const formattedMonth = `${MONTH_NAMES[Number(amMonth) - 1]} ${amYear}`;
-      const paymentDate = payment.payment_date
-        ? new Date(payment.payment_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-        : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      // payment_date is queried elsewhere via DATE(fp.payment_date), which
+      // implies it carries time info (TIMESTAMP), not a plain DATE — but
+      // that isn't confirmable from the migrations alone (the fee_payments
+      // table predates the tracked migration history). Parse the calendar
+      // date directly out of the ISO string instead of routing through
+      // `new Date(...).toLocaleDateString()`, which is timezone-sensitive
+      // and can roll the day back by one for servers whose local TZ is
+      // behind UTC — same bug already fixed for academic_month above.
+      // Works correctly whether payment_date is 'YYYY-MM-DD' or a full
+      // 'YYYY-MM-DDTHH:MM:SS...' timestamp.
+      const DAY_MONTH_NAMES = MONTH_NAMES;
+      function formatPaymentDate(d) {
+        const match = d ? String(d).match(/^(\d{4})-(\d{2})-(\d{2})/) : null;
+        if (match) {
+          const [, y, mo, day] = match;
+          return `${Number(day)} ${DAY_MONTH_NAMES[Number(mo) - 1]} ${y}`;
+        }
+        const now = new Date();
+        return `${now.getDate()} ${DAY_MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+      }
+      const paymentDate = formatPaymentDate(payment.payment_date);
       const formatCurrency = value => new Intl.NumberFormat('en-PK', {
         style: 'currency', currency: 'PKR', minimumFractionDigits: 0,
       }).format(Number(value || 0));
@@ -93,14 +153,15 @@ router.post('/', can('fees.add'), async (req, res, next) => {
             <tr><td style="padding:8px;border:1px solid #ddd;">Roll No.</td><td style="padding:8px;border:1px solid #ddd;">${payment.roll_no}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Class / Section</td><td style="padding:8px;border:1px solid #ddd;">${payment.class} / ${payment.section}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Payment Date</td><td style="padding:8px;border:1px solid #ddd;">${paymentDate}</td></tr>
-            <tr><td style="padding:8px;border:1px solid #ddd;">Amount Due</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_due)}</td></tr>
-            <tr><td style="padding:8px;border:1px solid #ddd;">Amount Paid</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_paid)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">This Payment</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.this_payment_amount)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Amount Due (${formattedMonth})</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_due)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Total Paid (${formattedMonth})</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_paid)}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Balance</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.balance)}</td></tr>
           </table>
           <p style="margin-top:16px;">If you have any questions or need further assistance, please contact the school office.</p>
           <p style="margin-top:8px;">Sincerely,<br/>School Administration</p>
         </div>`;
-      const text = `Fee Payment Receipt\n\nStudent: ${payment.first_name} ${payment.last_name}\nRoll No: ${payment.roll_no}\nClass/Section: ${payment.class} / ${payment.section}\nPayment Date: ${paymentDate}\nAmount Due: ${formatCurrency(payment.amount_due)}\nAmount Paid: ${formatCurrency(payment.amount_paid)}\nBalance: ${formatCurrency(payment.balance)}\n\nThank you for your payment.`;
+      const text = `Fee Payment Receipt\n\nStudent: ${payment.first_name} ${payment.last_name}\nRoll No: ${payment.roll_no}\nClass/Section: ${payment.class} / ${payment.section}\nPayment Date: ${paymentDate}\nThis Payment: ${formatCurrency(payment.this_payment_amount)}\nAmount Due (${formattedMonth}): ${formatCurrency(payment.amount_due)}\nTotal Paid (${formattedMonth}): ${formatCurrency(payment.amount_paid)}\nBalance: ${formatCurrency(payment.balance)}\n\nThank you for your payment.`;
 
       sendMail({
         to: payment.email,
@@ -112,7 +173,12 @@ router.post('/', can('fees.add'), async (req, res, next) => {
 
     res.status(201).json({ message: 'Fee payment recorded.', payment });
     broadcast('fees.changed', { action: 'added', payment_id: payment.payment_id });
-  } catch (err) { next(err); }
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (rollbackErr) { /* connection may already be closed */ }
+    next(err);
+  } finally {
+    client.release();
+  }
 });
 
 router.get('/student/:student_id', async (req, res, next) => {
@@ -347,8 +413,11 @@ router.get('/daily', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Editing an existing record is allowed for admin and principal.
-// In this system there are only two roles: admin and principal.
+// Editing an existing fee_payments record is gated by can('fees.edit'),
+// which defaults to true for admin and principal — but any role (viewer
+// included) can be granted it by ali from the Permissions page, and ali
+// itself always passes regardless of role_permissions. There is no fixed
+// two-role assumption baked in here.
 router.put('/:payment_id', can('fees.edit'), async (req, res, next) => {
   try {
     const { amount_paid, amount_due } = req.body;

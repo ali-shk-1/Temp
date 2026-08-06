@@ -223,7 +223,9 @@ router.put('/:id', can('staff.edit'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/staff/:id  — admin only
+// DELETE /api/staff/:id — gated by can('staff.delete'), which defaults
+// to admin-only but is toggleable per-role by ali from the Permissions
+// page (see permissions.js DEFAULT_PERMISSIONS).
 router.delete('/:id', can('staff.delete'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
