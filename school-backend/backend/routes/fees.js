@@ -30,11 +30,26 @@ router.post('/', authorize('admin', 'principal'), async (req, res, next) => {
     if (studentCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Student not found.' });
     }
+
+    // If a fee record already exists for this student and month, do not
+    // duplicate the due amount; record only the paid amount as an extra
+    // payment. This preserves daily payment history by payment_date while
+    // keeping monthly totals tied to the fee's academic_month.
+    const existingMonth = await pool.query(
+      `SELECT 1 FROM fee_payments
+       WHERE student_id = $1
+         AND DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $2::DATE)
+       LIMIT 1`,
+      [student_id, academic_month]
+    );
+    const insertedDue = existingMonth.rows.length ? 0 : amount_due;
+    const insertedPaid = amount_paid || 0;
+
     const { rows } = await pool.query(
       `INSERT INTO fee_payments (student_id, academic_month, amount_due, amount_paid)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [student_id, academic_month, amount_due, amount_paid || 0]
+      [student_id, academic_month, insertedDue, insertedPaid]
     );
 
     // Re-fetch joined with student info so the client has everything it
@@ -246,8 +261,15 @@ router.get('/', async (req, res, next) => {
   try {
     const { month, class: cls, search } = req.query;
     let query = `
-      SELECT fp.payment_id, fp.student_id, fp.academic_month, fp.amount_due, fp.amount_paid,
-             fp.payment_date, s.roll_no, s.first_name, s.last_name, s.class, s.section, s.photo_url
+      SELECT
+        MAX(fp.payment_id) AS payment_id,
+        fp.student_id,
+        DATE_TRUNC('month', fp.academic_month)::date AS academic_month,
+        SUM(fp.amount_due)  AS amount_due,
+        SUM(fp.amount_paid) AS amount_paid,
+        MAX(fp.payment_date) AS payment_date,
+        COUNT(*) AS payment_count,
+        s.roll_no, s.first_name, s.last_name, s.class, s.section, s.photo_url
       FROM fee_payments fp
       JOIN students s ON s.student_id = fp.student_id
       WHERE 1=1`;
@@ -271,7 +293,10 @@ router.get('/', async (req, res, next) => {
       vals.push(`%${search.toLowerCase()}%`);
       idx++;
     }
-    query += ` ORDER BY fp.academic_month DESC, s.class, s.section, s.roll_no`;
+    query += `
+      GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month), s.roll_no,
+               s.first_name, s.last_name, s.class, s.section, s.photo_url
+      ORDER BY DATE_TRUNC('month', fp.academic_month) DESC, s.class, s.section, s.roll_no`;
     const { rows } = await pool.query(query, vals);
     res.json({ count: rows.length, payments: rows });
   } catch (err) { next(err); }
