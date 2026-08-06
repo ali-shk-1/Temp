@@ -134,7 +134,7 @@ router.post('/:id/leave', authorize('admin', 'principal'), async (req, res, next
          (roll_no, section, class, first_name, last_name,
           father_name, contact_1, contact_2, email, photo_url, address,
           admission_date, fee_start_month, left_date, left_reason)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
       [student.roll_no, student.section, student.class, student.first_name, student.last_name,
        student.father_name, student.contact_1, student.contact_2, student.email, student.photo_url,
        student.address, student.admission_date, student.fee_start_month || student.admission_date, new Date().toISOString().slice(0,10), left_reason || null]
@@ -338,22 +338,6 @@ router.delete('/:id', authorize('principal'), async (req, res, next) => {
     next(err);
   } finally {
     client.release();
-  }
-});
-
-/* ─────────────────────────────────────────
-   GET /api/students/meta/classes
-───────────────────────────────────────── */
-router.get('/meta/classes', async (req, res, next) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT DISTINCT class, section
-       FROM students
-       ORDER BY class, section` 
-    );
-    res.json(rows);
-  } catch (err) {
-    next(err);
   }
 });
 
