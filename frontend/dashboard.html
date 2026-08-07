@@ -18,6 +18,13 @@
   </script>
 
   <title>Dashboard — School Management</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('theme');
+      if(!t){ t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -202,6 +209,7 @@
 
         const total = data.reduce((s, r) => s + (+r.amount_paid || 0), 0);
         el.innerHTML = `
+          <div class="table-wrap">
           <table>
             <thead><tr><th>Student</th><th>Class</th><th>Amount Paid</th></tr></thead>
             <tbody>
@@ -213,6 +221,7 @@
                 </tr>`).join('')}
             </tbody>
           </table>
+          </div>
           <p class="text-muted" style="font-size:12px;margin-top:8px;">
             Total: <strong>${formatMoney(total)}</strong>
           </p>`;
@@ -235,9 +244,10 @@
         }
 
         el.innerHTML = `
-          <div style="margin-bottom:10px;font-size:13px;color:#555;">
+          <div class="text-muted" style="margin-bottom:10px;font-size:13px;">
             Total overdue months: <strong>${totalOverdue}</strong>
           </div>
+          <div class="table-wrap">
           <table>
             <thead><tr><th>Student</th><th>Class</th><th>Overdue Months</th><th>Due</th><th>Paid</th></tr></thead>
             <tbody>
@@ -251,6 +261,7 @@
                 </tr>`).join('')}
             </tbody>
           </table>
+          </div>
           ${data.length > 8
             ? `<p class="text-muted" style="font-size:12px;margin-top:6px;">
                 +${data.length - 8} more — <a href="fees.html">View all</a>

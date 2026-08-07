@@ -18,11 +18,18 @@
   </script>
 
   <title>Login — School Management</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('theme');
+      if(!t){ t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body class="login-page">
   <div class="login-box">
-    <div class="login-logo">🏫 School Management</div>
+    <div class="login-logo"><img src="icon-192.png" alt="" class="login-logo-icon"/>School Management</div>
     <p class="login-sub">Administrator Login</p>
 
     <div class="form-group">

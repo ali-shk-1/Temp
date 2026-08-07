@@ -118,10 +118,48 @@ async function refreshMyPermissions() {
   }
 }
 
+/* ============ THEME (light / dark) ============ */
+
+const THEME_ICON_SUN = `<svg class="theme-icon theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <circle cx="12" cy="12" r="4.5" fill="currentColor"/>
+  <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+    <path d="M12 2v2.2M12 19.8V22M4.2 4.2l1.55 1.55M18.25 18.25l1.55 1.55M2 12h2.2M19.8 12H22M4.2 19.8l1.55-1.55M18.25 5.75l1.55-1.55"/>
+  </g>
+</svg>`;
+
+const THEME_ICON_MOON = `<svg class="theme-icon theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a7 7 0 0 0 10.7 10.7z" fill="currentColor"/>
+</svg>`;
+
+/**
+ * Reads the saved theme (or falls back to OS preference on first visit)
+ * and applies it to <html data-theme="..."> before the page paints.
+ * Called both from the inline <head> snippet (to avoid a flash of the
+ * wrong theme) and again here so the toggle button reflects the right
+ * icon once nav.js has loaded.
+ */
+function initTheme() {
+  let theme = localStorage.getItem('theme');
+  if (!theme) {
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+  return theme;
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+}
+
 let _lastRenderedNavPage = null;
 
 function renderNav(activePage) {
   _lastRenderedNavPage = activePage;
+  initTheme();
   const existing = document.querySelector('nav.navbar');
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   // Per-role page visibility: hide whole nav links ali has turned off for
@@ -140,10 +178,11 @@ function renderNav(activePage) {
   const nav = document.createElement('div');
   nav.innerHTML = `
     <nav class="navbar">
-      <a class="brand" href="dashboard.html">🏫 School Mgmt</a>
+      <a class="brand" href="dashboard.html"><img src="icon-192.png" alt="" class="brand-icon"/><span>School Mgmt</span></a>
       <nav>${links}</nav>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="color:#ccc;font-size:14px;">${user.username || ''}${user.role ? ' · ' + user.role : ''}</span>
+      <div class="navbar-right">
+        <button class="theme-toggle" id="themeToggleBtn" type="button" aria-label="Toggle dark mode" title="Toggle dark / light mode">${THEME_ICON_SUN}${THEME_ICON_MOON}</button>
+        <span class="navbar-user">${user.username || ''}${user.role ? ' · ' + user.role : ''}</span>
         <button class="logout-btn" onclick="logout()">Logout</button>
       </div>
     </nav>
@@ -154,4 +193,7 @@ function renderNav(activePage) {
   } else {
     document.body.insertBefore(nav.firstElementChild, document.body.firstChild);
   }
+
+  const toggleBtn = document.getElementById('themeToggleBtn');
+  if (toggleBtn) toggleBtn.addEventListener('click', toggleTheme);
 }
