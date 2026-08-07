@@ -1,3 +1,4 @@
+﻿$json = @'
 {
   "name": "school-mgmt-desktop",
   "version": "1.0.0",
@@ -16,12 +17,26 @@
     "appId": "com.schoolmgmt.desktop",
     "productName": "School Management",
     "files": ["**/*"],
+    "extraResources": [
+      { "from": "../school-backend/backend", "to": "school-backend/backend" },
+      { "from": "../frontend", "to": "frontend" }
+    ],
     "win": {
       "target": "nsis",
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "forceCodeSigning": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": true
     },
     "linux": { "target": "AppImage" },
     "mac": { "target": "dmg" }
   }
 }
+'@
+
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText("$PWD\package.json", $json, $utf8NoBom)

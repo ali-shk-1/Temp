@@ -6,11 +6,18 @@ const config = require('./config.json');
 
 let mainWindow;
 let backendProcess;
+let backendStarted = false;
 
-const BACKEND_ENTRY = path.join(__dirname, '..', 'school-backend', 'backend', 'server.js');
-const BACKEND_CWD   = path.dirname(BACKEND_ENTRY);
+const BACKEND_ENTRY = app.isPackaged
+  ? path.join(process.resourcesPath, 'school-backend', 'backend', 'server.js')
+  : path.join(__dirname, '..', 'school-backend', 'backend', 'server.js');
+
+const BACKEND_CWD = path.dirname(BACKEND_ENTRY);
 
 function startBackend() {
+  if (backendStarted) return;
+  backendStarted = true;
+
   backendProcess = spawn(process.execPath, [BACKEND_ENTRY], {
     cwd: BACKEND_CWD,
     env: { ...process.env, NODE_ENV: 'production' },
@@ -27,19 +34,27 @@ function startBackend() {
 }
 
 function waitForServer(url, cb) {
+  let done = false;
   const check = () => {
-    http.get(url, () => cb()).on('error', () => setTimeout(check, 1000));
-  }; 
+    if (done) return;
+    http.get(url, () => { done = true; cb(); })
+      .on('error', () => setTimeout(check, 1000));
+  };
   check();
 }
 
 function createWindow() {
+  if (mainWindow) { mainWindow.focus(); return; }
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     title: config.windowTitle,
+    icon: path.join(__dirname, 'build', 'icon.ico'),
     webPreferences: { contextIsolation: true, nodeIntegration: false }
   });
+
+  mainWindow.on('closed', () => { mainWindow = null; });
 
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'View', submenu: [
@@ -51,7 +66,7 @@ function createWindow() {
   mainWindow.loadFile('waiting.html');
 
   waitForServer(config.appUrl, () => {
-    mainWindow.loadURL(config.appUrl);
+    if (mainWindow) mainWindow.loadURL(config.appUrl);
   });
 }
 
