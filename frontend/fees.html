@@ -46,8 +46,8 @@
                  autocomplete="off"
                  oninput="onStudentSearchInput()"
                  onfocus="onStudentSearchInput()"
-                 style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box;"/>
-          <div id="payStudentResults" style="display:none;position:absolute;z-index:20;left:0;right:0;top:100%;background:#fff;border:1px solid #ccc;border-top:none;max-height:180px;overflow-y:auto;box-shadow:0 4px 8px rgba(0,0,0,.08);"></div>
+                 class="mini-input"/>
+          <div id="payStudentResults" class="popup-panel" style="display:none;position:absolute;z-index:20;left:0;right:0;top:100%;max-height:180px;overflow-y:auto;"></div>
         </div>
         <div class="form-group">
           <label>Academic Month *</label>
@@ -63,10 +63,10 @@
             <input type="number" id="payPaid" step="0.01" placeholder="0"/>
           </div>
         </div>
-        <div style="font-size:12px;color:#666;margin-bottom:10px;">
+        <div class="text-muted" style="font-size:12px;margin-bottom:10px;">
           For free students, enter 0 for both Amount Due and Amount Paid.
         </div>
-        <div id="existingPayInfo" style="display:none;background:#fff8e1;border:1px solid #ffe082;padding:10px;border-radius:4px;font-size:12px;margin-bottom:10px;"></div>
+        <div id="existingPayInfo" class="notice-box" style="padding:10px;border-radius:4px;font-size:12px;margin-bottom:10px;"></div>
         <div class="modal-footer">
           <button class="btn btn-outline" onclick="closePayModal()">Cancel</button>
           <button class="btn btn-success" onclick="savePayment()">Record Payment</button>
@@ -82,12 +82,12 @@
         <h2 class="modal-title">Payment Recorded</h2>
         <button class="modal-close" onclick="closeReceiptModal()">×</button>
       </div>
-      <div style="padding:4px 2px 14px;font-size:13px;color:#444;">
+      <div style="padding:4px 2px 14px;font-size:13px;color:var(--text);">
         <div style="text-align:center;margin-bottom:10px;">
           <div style="font-size:32px;">✅</div>
           <div>Payment saved successfully.</div>
         </div>
-        <div id="receiptSummary" style="background:#f7f7fb;border:1px solid #e2e2ea;border-radius:6px;padding:10px 12px;line-height:1.6;"></div>
+        <div id="receiptSummary" class="popup-panel" style="border-radius:6px;padding:10px 12px;line-height:1.6;"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeReceiptModal()">Close</button>
@@ -105,13 +105,12 @@
     <!-- Summary Stats -->
     <div class="stats-grid" id="feeStats">
       <div class="stat-card"><div class="label">Collected (Month)</div><div class="value" id="fStatCollected">—</div></div>
-      <div class="stat-card"><div class="label">Due (Month)</div><div class="value" id="fStatDue">—</div></div>
       <div class="stat-card"><div class="label">Monthly Defaulters</div><div class="value" id="fStatDefaulters">—</div></div>
       <div class="stat-card"><div class="label">Collected Today</div><div class="value" id="fStatToday">—</div></div>
     </div>
 
     <!-- Tabs -->
-    <div style="display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid #ddd;">
+    <div style="display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid var(--border);">
       <button class="tab-btn active" id="tab-monthly" onclick="switchTab('monthly')">Monthly Records</button>
       <button class="tab-btn" id="tab-daily" onclick="switchTab('daily')">Daily Collections</button>
       <button class="tab-btn" id="tab-monthly-defaulters" onclick="switchTab('monthly-defaulters')">Monthly Defaulters</button>
@@ -122,7 +121,7 @@
     <div id="tab-monthly-content">
       <div class="card" style="margin-bottom:12px;">
         <div class="filters">
-          <label style="font-size:12px;color:#666;">Month:</label>
+          <label class="text-muted" style="font-size:12px;">Month:</label>
           <input type="month" id="monthFilter" onchange="loadMonthlyRecords()"/>
           <select id="classFilter" onchange="loadMonthlyRecords()">
             <option value="">All Classes</option>
@@ -137,7 +136,7 @@
             <option value="partial">Partial</option>
             <option value="unpaid">Unpaid</option>
           </select>
-          <input type="text" placeholder="Search student…" id="feeSearch" oninput="filterMonthly()" style="padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;width:180px;"/>
+          <input type="text" placeholder="Search student…" id="feeSearch" oninput="filterMonthly()" class="mini-input" style="width:180px;"/>
         </div>
       </div>
       <div class="card">
@@ -203,10 +202,9 @@
               oninput="onHistoryStudentSearchInput()"
               onfocus="onHistoryStudentSearchInput()" />
             <input type="hidden" id="historyStudentSel" value="" />
-            <div id="historyStudentResults"
+            <div id="historyStudentResults" class="popup-panel"
               style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;
-                     max-height:260px;overflow-y:auto;border:1px solid #ccc;border-top:none;
-                     border-radius:0 0 4px 4px;background:#1c1c22;box-shadow:0 6px 16px rgba(0,0,0,.35);"></div>
+                     max-height:260px;overflow-y:auto;border-radius:0 0 4px 4px;"></div>
           </div>
         </div>
       </div>
@@ -335,11 +333,10 @@
       ).slice(0, 50); // cap rendered results for very large rosters
 
       if (matches.length === 0) {
-        results.innerHTML = `<div style="padding:8px 10px;font-size:13px;color:#888;">No matching students.</div>`;
+        results.innerHTML = `<div class="text-muted" style="padding:8px 10px;font-size:13px;">No matching students.</div>`;
       } else {
         results.innerHTML = matches.map(s => `
-          <div class="history-student-option" data-id="${s.student_id}"
-               style="padding:7px 10px;font-size:13px;cursor:pointer;"
+          <div class="history-student-option popup-option" data-id="${s.student_id}"
                onmousedown="selectHistoryStudent(${s.student_id})">
             ${historyStudentLabel(s)}
           </div>
@@ -379,7 +376,6 @@
     ]);
 
     document.getElementById('fStatCollected').textContent = formatMoney(feeSum.total_paid || 0);
-    document.getElementById('fStatDue').textContent       = formatMoney(feeSum.total_due  || 0);
 
     const defaulterCount = monthlyDefaultersRes?.total_overdue_months ??
       normalizeList(monthlyDefaultersRes, ['defaulters']).reduce((sum, r) => sum + (+r.overdue_months || 0), 0);

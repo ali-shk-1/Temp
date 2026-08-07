@@ -200,16 +200,23 @@ router.get('/student/:student_id', async (req, res, next) => {
 router.get('/summary/monthly', async (req, res, next) => {
   try {
     const month = normalizeMonthInput(req.query.month) || `${new Date().toISOString().slice(0, 7)}-01`;
+    // total_due/total_balance stay tied to academic_month (the fee period
+    // being charged for). total_paid ("Fee Collected") is tied to
+    // payment_date (the date money actually came in), so a payment made
+    // today for a past-due month (e.g. March+April paid in August) counts
+    // toward THIS month's collected total, not March/April's — matching
+    // how the dashboard's "Fee Collected (Month)" card is meant to work.
     const { rows } = await pool.query(
       `SELECT
-         TO_CHAR(DATE_TRUNC('month', academic_month), 'Month YYYY') AS month_label,
-         COUNT(*) AS payment_count,
-         SUM(amount_due)  AS total_due,
-         SUM(amount_paid) AS total_paid,
-         SUM(amount_due - amount_paid) AS total_balance
-       FROM fee_payments
-       WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $1::DATE)
-       GROUP BY DATE_TRUNC('month', academic_month)`,
+         TO_CHAR($1::DATE, 'Month YYYY') AS month_label,
+         (SELECT COUNT(*) FROM fee_payments
+           WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $1::DATE)) AS payment_count,
+         (SELECT COALESCE(SUM(amount_due), 0) FROM fee_payments
+           WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $1::DATE)) AS total_due,
+         (SELECT COALESCE(SUM(amount_paid), 0) FROM fee_payments
+           WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', $1::DATE)) AS total_paid,
+         (SELECT COALESCE(SUM(amount_due - amount_paid), 0) FROM fee_payments
+           WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $1::DATE)) AS total_balance`,
       [month]
     );
     res.json(rows[0] || { month_label: null, payment_count: 0, total_due: 0, total_paid: 0, total_balance: 0 });

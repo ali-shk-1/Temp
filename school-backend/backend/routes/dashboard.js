@@ -15,11 +15,22 @@ router.get('/', async (req, res, next) => {
     ] = await Promise.all([
       pool.query('SELECT COUNT(*) AS total FROM students'),
       pool.query('SELECT COUNT(*) AS total FROM staff'),
+      // Two different questions, so two different date columns:
+      //  - amount_due (what's owed for the month) is tied to academic_month,
+      //    the fee period the charge is FOR.
+      //  - amount_paid shown here ("Fee Collected (Month)") is tied to
+      //    payment_date, the date the payment was actually RECEIVED — so if
+      //    a student pays for March+April in August, that money counts
+      //    toward August's collected total, not March/April's.
       pool.query(
-        `SELECT COALESCE(SUM(amount_due), 0) AS total_due,
-                COALESCE(SUM(amount_paid), 0) AS total_paid
-         FROM fee_payments
-         WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $1::DATE)`,
+        `SELECT COALESCE((
+                  SELECT SUM(amount_due) FROM fee_payments
+                  WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', $1::DATE)
+                ), 0) AS total_due,
+                COALESCE((
+                  SELECT SUM(amount_paid) FROM fee_payments
+                  WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', $1::DATE)
+                ), 0) AS total_paid`,
         [currentMonth]
       ),
       pool.query(

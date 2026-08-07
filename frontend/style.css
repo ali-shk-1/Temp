@@ -380,7 +380,17 @@ tr:hover td { background: #fafafa; }
   --th-bg:#232636; --th-text:#c3c6d6; --td-text:#e0e2ec; --row-hover:#262a3a;
   --input-bg:#232636; --input-border:#3a3f55; --muted:#9498ad; --font-scale:1.03;
 }
-body{ background:var(--bg); color:var(--text); font-size:calc(14px * var(--font-scale)); transition:background .2s,color .2s; }
+body{ background:var(--bg); color:var(--text); font-size:calc(14px * var(--font-scale)); transition:background .2s; }
+/* Color (not background) transitions on bold/large text cause a visible
+   double-paint "ghosting" artifact in Chromium when the browser
+   cross-fades text-layer subpixel-AA between the old and new color mid-
+   frame (seen as colored fringing around bold numbers when switching
+   theme). Snapping color instantly for text — while keeping the
+   background fade for a smooth overall feel — removes the artifact
+   without disabling the theme transition. */
+*{ transition-property: background, background-color, border-color; }
+.stat-card .value, .page-title, td, th, .modal-title, .login-logo,
+.btn, .badge, label, .form-group label{ transition: background .2s, border-color .2s; }
 .navbar{ background:var(--nav-bg); color:var(--nav-text); }
 .navbar nav a{ color:var(--nav-link); }
 .page-title{ color:var(--text); }
