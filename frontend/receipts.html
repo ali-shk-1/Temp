@@ -53,10 +53,12 @@
         <input type="date" id="receiptFrom" onchange="loadReceipts()"/>
         <label class="text-muted" style="font-size:12px;">To:</label>
         <input type="date" id="receiptTo" onchange="loadReceipts()"/>
-        <input type="text" id="receiptSearch" placeholder="Search receipt #, name, or roll no…"
-               oninput="filterReceipts()" class="mini-input" style="width:220px;"/>
         <button class="btn btn-outline btn-sm" onclick="clearReceiptFilters()">Clear</button>
-        <span id="receiptsCountLabel" style="font-size:13px;font-weight:600;color:var(--muted);margin-left:auto;"></span>
+      </div>
+      <div class="filters" style="margin-bottom:0;">
+        <input type="text" id="receiptSearch" placeholder="Search receipt #, name, roll no., or class…"
+               oninput="filterReceipts()" class="mini-input" style="flex:1;min-width:220px;"/>
+        <span id="receiptsCountLabel" style="font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;"></span>
       </div>
     </div>
 
@@ -122,13 +124,17 @@
     }
 
     function filterReceipts() {
-      const q = (document.getElementById('receiptSearch').value || '').toLowerCase().trim();
+      const raw = (document.getElementById('receiptSearch').value || '').trim();
+      const q = raw.replace(/^#/, '').toLowerCase(); // allow typing "#12" or "12" interchangeably
       const tbody = document.getElementById('receiptsBody');
 
       const filtered = !q ? currentReceiptsList : currentReceiptsList.filter(r =>
-        String(r.receipt_no).includes(q) ||
+        String(r.receipt_no).toLowerCase().includes(q) ||
         String(r.roll_no || '').toLowerCase().includes(q) ||
-        String(r.student_name || '').toLowerCase().includes(q)
+        String(r.student_name || '').toLowerCase().includes(q) ||
+        String(r.class || '').toLowerCase().includes(q) ||
+        String(r.section || '').toLowerCase().includes(q) ||
+        String(r.issued_by || '').toLowerCase().includes(q)
       );
 
       document.getElementById('receiptsCountLabel').textContent =

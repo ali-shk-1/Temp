@@ -519,20 +519,52 @@ tr:hover td{ background:var(--row-hover); }
 }
 .perm-user-title{ font-size:16px; font-weight:700; color:var(--text); }
 .perm-user-sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+
+/* Two clearly separated sections per role card: which nav pages are
+   visible, and what each page's add/edit/delete actions allow. Each
+   section heading sits on its own bordered strip so the eye can jump
+   straight to "Nav Pages" vs "Actions" instead of reading a long
+   undifferentiated list of group titles. */
+.perm-section-title{
+  font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px;
+  color:var(--text); padding:6px 10px; margin:18px 0 10px;
+  background:var(--panel-2, rgba(127,127,127,0.08)); border-radius:6px;
+}
+.perm-section-title:first-of-type{ margin-top:0; }
+
+/* Permission groups (Students, Fees, Receipts, ...) laid out as cards in
+   a responsive grid so multiple groups sit side-by-side on wide screens
+   instead of stacking into one long column. */
+.perm-groups-wrap{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr));
+  gap:12px;
+}
+.perm-group-card{
+  border:1px solid var(--border); border-radius:8px; padding:10px 12px;
+  background:var(--panel, transparent);
+}
 .perm-group-title{
   font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
-  color:var(--muted); margin:14px 0 8px;
+  color:var(--muted); margin:0 0 8px;
 }
-.perm-group-title:first-of-type{ margin-top:0; }
 .perm-grid{
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr));
-  gap:8px 16px;
+  display:flex; flex-direction:column; gap:2px;
 }
 .perm-row{
   display:flex; align-items:center; justify-content:space-between;
   gap:10px; padding:6px 0; font-size:13px; color:var(--td-text);
+  border-bottom:1px solid var(--border);
 }
+.perm-row:last-child{ border-bottom:none; }
 .perm-row.disabled{ opacity:0.5; }
+
+/* Nav-page-visibility toggles: a compact grid of just page-name + switch,
+   without the group-card chrome (there's no add/edit/delete breakdown
+   here, just "can this role see this page at all").  */
+.perm-pages-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr));
+  gap:8px 20px;
+}
 
 .toggle-switch{
   position:relative; display:inline-block; width:40px; height:22px; flex:0 0 auto;

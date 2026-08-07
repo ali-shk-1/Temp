@@ -33,25 +33,23 @@ CREATE TABLE IF NOT EXISTS payment_receipts (
   issued_by     VARCHAR                    -- username of the staff member who recorded the payment, if known
 );
 
--- One receipt per payment — a payment should never get two competing
--- receipt numbers.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'payment_receipts_payment_id_unique'
-  ) THEN
-    ALTER TABLE payment_receipts
-      ADD CONSTRAINT payment_receipts_payment_id_unique UNIQUE (payment_id);
-  END IF;
-END;
-$$;
+-- Multiple receipts CAN exist per payment_id by design: every time staff
+-- print a receipt (including reprints) a fresh receipt_no is issued (see
+-- POST /api/fees/:payment_id/receipt). This intentionally lets a payment
+-- accumulate more than one receipt row over its lifetime — e.g. if a
+-- parent asks for a duplicate — and each printed receipt_no can be looked
+-- up here to confirm it's system-generated and matches this payment,
+-- rather than being made up. No UNIQUE(payment_id) constraint, then.
 
 CREATE INDEX IF NOT EXISTS idx_payment_receipts_student_id ON payment_receipts(student_id);
 CREATE INDEX IF NOT EXISTS idx_payment_receipts_issued_at ON payment_receipts(issued_at);
 
--- Backfill: give every existing fee_payments row a receipt so historical
--- payments are also verifiable, in payment_id order (so earlier payments
--- get earlier/lower receipt numbers).
+-- Backfill: give every existing fee_payments row one initial receipt so
+-- historical payments are also verifiable, in payment_id order (so
+-- earlier payments get earlier/lower receipt numbers). Guarded so this
+-- only runs once — if the migration is re-applied after receipts have
+-- already started accumulating (including reprints), we don't want to
+-- insert duplicate backfill rows on top of real activity.
 INSERT INTO payment_receipts
   (payment_id, student_id, roll_no, student_name, class, section, academic_month, amount_due, amount_paid, print_mode, issued_at)
 SELECT
@@ -61,7 +59,7 @@ SELECT
   'paper', fp.payment_date
 FROM fee_payments fp
 JOIN students s ON s.student_id = fp.student_id
-ORDER BY fp.payment_id
-ON CONFLICT (payment_id) DO NOTHING;
+WHERE NOT EXISTS (SELECT 1 FROM payment_receipts)
+ORDER BY fp.payment_id;
 
 COMMIT;

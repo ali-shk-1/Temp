@@ -857,6 +857,15 @@
 
     // ---------------- Receipt printing ----------------
 
+    // Formats a Date as "DD/MM/YYYY, HH:MM" (24h) for receipt timestamps —
+    // used for both the fee submit time (payment_date) and, on the
+    // thermal layout, the actual moment the receipt is printed.
+    function fmtDateTime(dt) {
+      const datePart = dt.toLocaleDateString('en-GB');
+      const timePart = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+      return `${datePart}, ${timePart}`;
+    }
+
     // Normalizes a payment/student record (from any of the tables, or the
     // POST /api/fees response) into one consistent shape for the receipt.
     function normalizeReceiptData(r) {
@@ -995,7 +1004,7 @@
     </div>
 
     <div class="title">Fee Receipt</div>
-    <div class="meta">Receipt No: ${d.receipt_no} &nbsp;|&nbsp; Date: ${d.payment_date.toLocaleDateString('en-GB')}</div>
+    <div class="meta">Receipt No: ${d.receipt_no} &nbsp;|&nbsp; Fee Submitted: ${fmtDateTime(d.payment_date)}</div>
     ${d.photo_url ? `<div class="receipt-photo"><img src="${d.photo_url}" alt="Student photo" onerror="this.style.display='none'"/></div>` : ''}
     <table class="info">
       <tr><td class="label">Student Name</td><td>${d.student_name}</td>
@@ -1040,6 +1049,13 @@
       const d = currentReceiptData;
       if (!d) return;
 
+      // Captured at the moment the print button is actually clicked —
+      // distinct from d.payment_date (when the fee was submitted), so a
+      // reprint later clearly shows a different "Printed" time than
+      // "Fee Submitted" time, while the paper layout only ever needed the
+      // submit time.
+      const printedAt = new Date();
+
       const win = window.open('', '_blank');
       if (!win) { showToast('Please allow pop-ups to print the receipt.', 'error'); return; }
 
@@ -1083,7 +1099,8 @@
   <div class="divider"></div>
 
   ${row('Receipt No.', d.receipt_no)}
-  ${row('Date', d.payment_date.toLocaleDateString('en-GB'))}
+  ${row('Fee Submitted', fmtDateTime(d.payment_date))}
+  ${row('Printed', fmtDateTime(printedAt))}
   <div class="divider"></div>
 
   <div class="title center">Student Details</div>

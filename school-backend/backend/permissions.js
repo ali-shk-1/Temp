@@ -68,6 +68,15 @@ const PERMISSION_GROUPS = [
     ],
   },
   {
+    key: 'receipts',
+    label: 'Receipts',
+    permissions: [
+      { key: 'receipts.add',    label: 'Issue/print receipt' },
+      { key: 'receipts.edit',   label: 'Edit receipt' },
+      { key: 'receipts.delete', label: 'Delete receipt' },
+    ],
+  },
+  {
     key: 'expenses',
     label: 'Expenses',
     permissions: [
@@ -75,6 +84,24 @@ const PERMISSION_GROUPS = [
       { key: 'expenses.edit',       label: 'Edit expense' },
       { key: 'expenses.delete',     label: 'Delete expense' },
       { key: 'expenses.categories', label: 'Manage expense categories' },
+    ],
+  },
+  {
+    key: 'tracking',
+    label: 'Tracking',
+    permissions: [
+      { key: 'tracking.add',    label: 'Add tracking entry' },
+      { key: 'tracking.edit',   label: 'Edit tracking entry' },
+      { key: 'tracking.delete', label: 'Delete tracking entry' },
+    ],
+  },
+  {
+    key: 'balance-sheet',
+    label: 'Total',
+    permissions: [
+      { key: 'balance-sheet.add',    label: 'Add ledger entry' },
+      { key: 'balance-sheet.edit',   label: 'Edit ledger entry' },
+      { key: 'balance-sheet.delete', label: 'Delete ledger entry' },
     ],
   },
 ];
@@ -127,10 +154,19 @@ const DEFAULT_PERMISSIONS = {
     'fees.add': true,
     'fees.edit': true,
     'fees.delete': true,
+    'receipts.add': true,
+    'receipts.edit': true,
+    'receipts.delete': false,   // deleting a receipt removes an audit record — admin-restricted by default
     'expenses.add': true,
     'expenses.edit': true,
     'expenses.delete': true,
     'expenses.categories': true,
+    'tracking.add': true,
+    'tracking.edit': true,
+    'tracking.delete': false,
+    'balance-sheet.add': false,   // Total is a computed report, not directly editable, by default
+    'balance-sheet.edit': false,
+    'balance-sheet.delete': false,
   },
   principal: {
     'students.add': true,
@@ -149,10 +185,19 @@ const DEFAULT_PERMISSIONS = {
     'fees.add': true,
     'fees.edit': true,
     'fees.delete': true,
+    'receipts.add': true,
+    'receipts.edit': false,
+    'receipts.delete': false,
     'expenses.add': false,      // expenses.js is admin-only
     'expenses.edit': false,
     'expenses.delete': false,
     'expenses.categories': false,
+    'tracking.add': true,
+    'tracking.edit': true,
+    'tracking.delete': false,
+    'balance-sheet.add': false,
+    'balance-sheet.edit': false,
+    'balance-sheet.delete': false,
   },
   viewer: {
     // Viewer can only ever look — nothing is on by default, and the
@@ -173,10 +218,19 @@ const DEFAULT_PERMISSIONS = {
     'fees.add': false,
     'fees.edit': false,
     'fees.delete': false,
+    'receipts.add': false,
+    'receipts.edit': false,
+    'receipts.delete': false,
     'expenses.add': false,
     'expenses.edit': false,
     'expenses.delete': false,
     'expenses.categories': false,
+    'tracking.add': false,
+    'tracking.edit': false,
+    'tracking.delete': false,
+    'balance-sheet.add': false,
+    'balance-sheet.edit': false,
+    'balance-sheet.delete': false,
   },
 };
 

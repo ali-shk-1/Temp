@@ -136,10 +136,10 @@
         const firstUser = roleEntry.users[0];
 
         const pageVisHtml = `
-          <div class="perm-group-title">Nav Pages Visible</div>
-          <div class="perm-grid">
+          <div class="perm-section-title">Nav Pages Visible</div>
+          <div class="perm-pages-grid">
             ${(permData.pages || []).map(p => `
-              <div class="perm-row">
+              <div class="perm-row" style="border-bottom:none;">
                 <span>${p.label}</span>
                 <label class="toggle-switch">
                   <input type="checkbox" data-role="${roleEntry.role}" data-page="${p.key}"
@@ -152,22 +152,29 @@
           </div>
         `;
 
-        const groupsHtml = groups.map(g => `
-          <div class="perm-group-title">${g.label}</div>
-          <div class="perm-grid">
-            ${g.permissions.map(p => `
-              <div class="perm-row">
-                <span>${p.label}</span>
-                <label class="toggle-switch">
-                  <input type="checkbox" data-role="${roleEntry.role}" data-key="${p.key}"
-                    ${roleEntry.permissions[p.key] ? 'checked' : ''}
-                    onchange="togglePermission(this)"/>
-                  <span class="toggle-slider"></span>
-                </label>
+        const groupsHtml = `
+          <div class="perm-section-title">Actions</div>
+          <div class="perm-groups-wrap">
+            ${groups.map(g => `
+              <div class="perm-group-card">
+                <div class="perm-group-title">${g.label}</div>
+                <div class="perm-grid">
+                  ${g.permissions.map(p => `
+                    <div class="perm-row">
+                      <span>${p.label}</span>
+                      <label class="toggle-switch">
+                        <input type="checkbox" data-role="${roleEntry.role}" data-key="${p.key}"
+                          ${roleEntry.permissions[p.key] ? 'checked' : ''}
+                          onchange="togglePermission(this)"/>
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  `).join('')}
+                </div>
               </div>
             `).join('')}
           </div>
-        `).join('');
+        `;
 
         return `
           <div class="card perm-user-card">

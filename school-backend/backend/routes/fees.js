@@ -118,7 +118,6 @@ router.post('/', can('fees.add'), async (req, res, next) => {
         `INSERT INTO payment_receipts
            (payment_id, student_id, roll_no, student_name, class, section, academic_month, amount_due, amount_paid, print_mode, issued_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-         ON CONFLICT (payment_id) DO UPDATE SET payment_id = EXCLUDED.payment_id
          RETURNING receipt_no`,
         [
           rows[0].payment_id, student_id, paymentRow.roll_no, studentName,
