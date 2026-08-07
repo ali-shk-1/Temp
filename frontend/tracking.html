@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <title>Tracking — School Management</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('theme');
+      if(!t){ t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .period-switch{ display:flex; align-items:center; gap:10px; }
+    .period-switch .toggle-switch{ width:44px; height:24px; }
+    .period-switch .toggle-slider::before{ height:18px; width:18px; }
+    .period-switch input:checked + .toggle-slider::before{ transform:translateX(20px); }
+    .period-label{ font-size:13px; font-weight:600; color:var(--text); }
+    .period-label.inactive{ color:var(--muted); font-weight:400; }
+    .tracking-summary{ display:flex; flex-wrap:wrap; gap:24px; align-items:baseline; }
+    .tracking-summary .big{ font-size:26px; font-weight:700; color:var(--text); }
+    .tracking-summary .small{ font-size:12px; color:var(--muted); margin-top:2px; }
+    .tracking-summary .block{ min-width:120px; }
+  </style>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Fee Tracking</h1>
+      <div class="period-switch">
+        <span class="period-label" id="lblMonth">Month</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="periodToggle" onchange="onPeriodToggle()"/>
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="period-label inactive" id="lblYear">Year</span>
+      </div>
+    </div>
+
+    <!-- Month/Year pickers -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="filters" id="monthPickerRow">
+        <label class="text-muted" style="font-size:12px;">Month:</label>
+        <input type="month" id="monthPicker" onchange="loadTracking()"/>
+        <button class="btn btn-outline btn-sm" onclick="setCurrentMonth()">This Month</button>
+      </div>
+      <div class="filters" id="yearPickerRow" style="display:none;">
+        <label class="text-muted" style="font-size:12px;">Year:</label>
+        <select id="yearPicker" onchange="loadYearSummary()"></select>
+      </div>
+    </div>
+
+    <!-- MONTH VIEW -->
+    <div id="monthView">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="tracking-summary">
+          <div class="block">
+            <div class="big amount-success" id="sumPaid">Rs. 0</div>
+            <div class="small">Fee Paid</div>
+          </div>
+          <div class="block">
+            <div class="big" id="sumDue" style="font-size:16px;">Rs. 0</div>
+            <div class="small">Fee Due</div>
+          </div>
+          <div class="block">
+            <div class="big amount-danger" id="sumBalance" style="font-size:16px;">Rs. 0</div>
+            <div class="small">Balance Due</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title" id="trackTableTitle">Students Who Paid</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Roll No</th><th>Full Name</th><th>Class</th><th>Sec</th>
+                <th>Father Name</th><th>Fee Month</th><th>Fee (Due)</th><th>Fee (Paid)</th><th>Balance</th>
+              </tr>
+            </thead>
+            <tbody id="trackTableBody"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- YEAR VIEW -->
+    <div id="yearView" style="display:none;">
+      <div class="card">
+        <div class="section-title">Monthly Breakdown</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Month</th><th>Students</th><th>Fee Due</th><th>Fee Paid</th><th>Balance</th></tr>
+            </thead>
+            <tbody id="yearTableBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script src="events.js"></script>
+  <script>
+    checkAuth();
+    renderNav('tracking');
+    bindPanelKeyboardNavigation(document);
+
+    const nowStr = new Date().toISOString().slice(0,10);
+    const currentMonthStr = nowStr.slice(0,7);
+    const currentYear = new Date().getFullYear();
+
+    document.getElementById('monthPicker').value = currentMonthStr;
+
+    // Populate year dropdown: currentYear-4 .. currentYear
+    const yearSel = document.getElementById('yearPicker');
+    for (let y = currentYear; y >= currentYear - 4; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      yearSel.appendChild(opt);
+    }
+
+    function setCurrentMonth() {
+      document.getElementById('monthPicker').value = currentMonthStr;
+      loadTracking();
+    }
+
+    function onPeriodToggle() {
+      const isYear = document.getElementById('periodToggle').checked;
+      document.getElementById('lblMonth').classList.toggle('inactive', isYear);
+      document.getElementById('lblYear').classList.toggle('inactive', !isYear);
+      document.getElementById('monthPickerRow').style.display = isYear ? 'none' : '';
+      document.getElementById('yearPickerRow').style.display  = isYear ? '' : 'none';
+      document.getElementById('monthView').style.display = isYear ? 'none' : '';
+      document.getElementById('yearView').style.display  = isYear ? '' : 'none';
+      if (isYear) loadYearSummary(); else loadTracking();
+    }
+
+    async function loadTracking() {
+      const tbody = document.getElementById('trackTableBody');
+      tbody.innerHTML = '<tr><td colspan="10" class="loading">Loading…</td></tr>';
+      const month = document.getElementById('monthPicker').value;
+      if (!month) return;
+      try {
+        const data = await api('GET', `/api/fees/tracking/monthly?month=${month}`);
+        dbg('tracking monthly', data);
+        const students = data.students || [];
+        const totals = data.totals || { total_paid: 0, total_due: 0, total_balance: 0 };
+
+        document.getElementById('sumPaid').textContent = formatMoney(totals.total_paid);
+        document.getElementById('sumDue').textContent = formatMoney(totals.total_due);
+        document.getElementById('sumBalance').textContent = formatMoney(totals.total_balance);
+
+        const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const [y, m] = month.split('-');
+        document.getElementById('trackTableTitle').textContent =
+          `Students Who Paid Their Fee In ${MONTH_NAMES[Number(m)-1]} ${y}`;
+
+        if (!students.length) {
+          tbody.innerHTML = '<tr><td colspan="10" class="empty">No fee payments recorded for this month.</td></tr>';
+          return;
+        }
+
+        const feeMonthLabel = (r) => {
+          if (!r.academic_month) return '—';
+          const [fy, fm] = String(r.academic_month).slice(0, 7).split('-');
+          return `${MONTH_NAMES[Number(fm) - 1].slice(0, 3)} ${fy}`;
+        };
+
+        tbody.innerHTML = students.map((s, i) => {
+          const balance = (Number(s.amount_due) || 0) - (Number(s.amount_paid) || 0);
+          return `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${s.roll_no ?? '—'}</td>
+            <td>${s.first_name || ''} ${s.last_name || ''}</td>
+            <td>${s.class ?? '—'}</td>
+            <td>${s.section ?? '—'}</td>
+            <td>${s.father_name || '—'}</td>
+            <td><span class="badge badge-info">${feeMonthLabel(s)}</span></td>
+            <td>${formatMoney(s.amount_due)}</td>
+            <td class="amount-success">${formatMoney(s.amount_paid)}</td>
+            <td class="${balance > 0 ? 'amount-danger' : ''}">${formatMoney(balance)}</td>
+          </tr>`;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    async function loadYearSummary() {
+      const tbody = document.getElementById('yearTableBody');
+      tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
+      const year = document.getElementById('yearPicker').value || currentYear;
+      try {
+        const rows = await api('GET', `/api/fees/tracking/yearly?year=${year}`);
+        dbg('tracking yearly', rows);
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty">No data for this year.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(r => {
+          const balance = (Number(r.total_due) || 0) - (Number(r.total_paid) || 0);
+          return `
+          <tr>
+            <td>${r.month_label}</td>
+            <td>${r.student_count}</td>
+            <td>${formatMoney(r.total_due)}</td>
+            <td class="amount-success">${formatMoney(r.total_paid)}</td>
+            <td class="${balance > 0 ? 'amount-danger' : ''}">${formatMoney(balance)}</td>
+          </tr>`;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    async function init() {
+      await loadMyPermissions();
+      await loadTracking();
+      connectLiveUpdates({
+        'fees.changed': () => {
+          if (document.getElementById('periodToggle').checked) loadYearSummary();
+          else loadTracking();
+        },
+        'permissions.changed': () => refreshMyPermissions(),
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

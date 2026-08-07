@@ -21,6 +21,8 @@ const ALL_PAGES = [
   { href: 'dashboard.html', label: 'Dashboard', key: 'dashboard' },
   { href: 'fees.html',      label: 'Fees',      key: 'fees'      },
   { href: 'expenses.html',  label: 'Expenses',  key: 'expenses'  },
+  { href: 'tracking.html',      label: 'Tracking', key: 'tracking'      },
+  { href: 'balance-sheet.html', label: 'Total',     key: 'balance-sheet' },
   { href: 'students.html',  label: 'Students',  key: 'students'  },
   { href: 'left-students.html', label: 'Left Students', key: 'left-students' },
   { href: 'staff.html',     label: 'Staff',     key: 'staff'     },

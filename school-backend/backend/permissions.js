@@ -95,6 +95,8 @@ const PAGE_KEYS = [
   { key: 'left-staff',     label: 'Left Staff' },
   { key: 'fees',           label: 'Fees' },
   { key: 'expenses',       label: 'Expenses' },
+  { key: 'tracking',       label: 'Tracking' },
+  { key: 'balance-sheet',  label: 'Total' },
 ];
 
 // Roles whose permissions are toggle-able via the Permissions page.

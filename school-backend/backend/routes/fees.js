@@ -359,6 +359,202 @@ router.get('/monthly-defaulters', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* ─────────────────────────────────────────
+   TRACKING
+   Groups fee_payments by the DATE the payment was actually made
+   (payment_date), not the month it was billed for (academic_month).
+   e.g. a June fee paid in August shows up under August here — this
+   mirrors the "Fee Collected (Month)" logic already used on the
+   dashboard and in /summary/monthly above.
+───────────────────────────────────────── */
+
+// GET /api/fees/tracking/monthly?month=YYYY-MM
+// One row PER (student, fee-month-being-paid-for). If a student pays for
+// two different academic_months (e.g. July + August dues) within this
+// calendar month, that's two separate rows here — each with its own
+// academic_month label — not merged into one, so nothing is silently
+// summed together and hidden from view.
+router.get('/tracking/monthly', async (req, res, next) => {
+  try {
+    const month = normalizeMonthInput(req.query.month) || `${new Date().toISOString().slice(0, 7)}-01`;
+    const { rows } = await pool.query(
+      `SELECT
+         fp.student_id,
+         DATE_TRUNC('month', fp.academic_month)::date AS academic_month,
+         SUM(fp.amount_due)  AS amount_due,
+         SUM(fp.amount_paid) AS amount_paid,
+         MAX(fp.payment_date) AS last_payment_date,
+         s.roll_no, s.first_name, s.last_name, s.class, s.section, s.father_name
+       FROM fee_payments fp
+       JOIN students s ON s.student_id = fp.student_id
+       WHERE DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month)) = DATE_TRUNC('month', $1::DATE)
+       GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month), s.roll_no,
+                s.first_name, s.last_name, s.class, s.section, s.father_name
+       ORDER BY s.class, s.section, s.roll_no, academic_month`,
+      [month]
+    );
+    const totals = rows.reduce((acc, r) => {
+      acc.total_paid += Number(r.amount_paid) || 0;
+      acc.total_due  += Number(r.amount_due)  || 0;
+      return acc;
+    }, { total_paid: 0, total_due: 0 });
+    totals.total_balance = totals.total_due - totals.total_paid;
+    res.json({ count: rows.length, month, students: rows, totals });
+  } catch (err) { next(err); }
+});
+
+// GET /api/fees/tracking/yearly?year=YYYY
+// One row per month with student-count + totals, for the year toggle view.
+router.get('/tracking/yearly', async (req, res, next) => {
+  try {
+    const year = req.query.year || new Date().getFullYear();
+    const { rows } = await pool.query(
+      `SELECT
+         TO_CHAR(month_date, 'Mon YYYY') AS month_label,
+         month_date,
+         student_count,
+         total_due,
+         total_paid,
+         (total_due - total_paid) AS total_balance
+       FROM (
+         SELECT
+           DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month)) AS month_date,
+           COUNT(DISTINCT fp.student_id) AS student_count,
+           SUM(fp.amount_due)  AS total_due,
+           SUM(fp.amount_paid) AS total_paid
+         FROM fee_payments fp
+         WHERE EXTRACT(YEAR FROM COALESCE(fp.payment_date, fp.academic_month)) = $1
+         GROUP BY DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month))
+       ) t
+       ORDER BY month_date`,
+      [year]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+/* ─────────────────────────────────────────
+   BALANCE SHEET
+   Day-by-day (or month-by-month) ledger combining fee collections and
+   expenses, with running (cumulative) totals — Fee / Total Fee / Expense /
+   Total Expense / Balance / T.Balance, matching the reference layout.
+───────────────────────────────────────── */
+
+// GET /api/fees/balance-sheet/monthly?month=YYYY-MM
+// One row per DAY within the given month, running totals reset at the
+// start of that month (Total Fee/Total Expense/T.Balance are cumulative
+// WITHIN the selected month only).
+router.get('/balance-sheet/monthly', async (req, res, next) => {
+  try {
+    const month = normalizeMonthInput(req.query.month) || `${new Date().toISOString().slice(0, 7)}-01`;
+    const { rows } = await pool.query(
+      `WITH days AS (
+         SELECT generate_series(
+           DATE_TRUNC('month', $1::DATE),
+           (DATE_TRUNC('month', $1::DATE) + INTERVAL '1 month - 1 day'),
+           INTERVAL '1 day'
+         )::date AS day
+       ),
+       fee_by_day AS (
+         SELECT DATE(COALESCE(payment_date, academic_month)) AS day,
+                SUM(amount_paid) AS fee
+         FROM fee_payments
+         WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', $1::DATE)
+         GROUP BY DATE(COALESCE(payment_date, academic_month))
+       ),
+       expense_by_day AS (
+         SELECT DATE(created_at) AS day,
+                SUM(amount) AS expense
+         FROM expenses
+         WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', $1::DATE)
+         GROUP BY DATE(created_at)
+       )
+       SELECT
+         d.day,
+         COALESCE(f.fee, 0)      AS fee,
+         COALESCE(e.expense, 0)  AS expense,
+         SUM(COALESCE(f.fee, 0))     OVER (ORDER BY d.day) AS total_fee,
+         SUM(COALESCE(e.expense, 0)) OVER (ORDER BY d.day) AS total_expense,
+         (COALESCE(f.fee, 0) - COALESCE(e.expense, 0)) AS balance,
+         SUM(COALESCE(f.fee, 0) - COALESCE(e.expense, 0)) OVER (ORDER BY d.day) AS t_balance
+       FROM days d
+       LEFT JOIN fee_by_day f ON f.day = d.day
+       LEFT JOIN expense_by_day e ON e.day = d.day
+       ORDER BY d.day`,
+      [month]
+    );
+    const last = rows[rows.length - 1];
+    res.json({
+      month,
+      days: rows,
+      totals: {
+        fee: last ? Number(last.total_fee) : 0,
+        expense: last ? Number(last.total_expense) : 0,
+        balance: last ? Number(last.t_balance) : 0,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/fees/balance-sheet/yearly?year=YYYY
+// One row per MONTH within the given year. Each month's totals are
+// independent — Total Fee/Total Expense/T.Balance reset to that month's
+// own numbers, they do NOT accumulate across months (same behavior as the
+// monthly view resetting at the start of each new month).
+router.get('/balance-sheet/yearly', async (req, res, next) => {
+  try {
+    const year = req.query.year || new Date().getFullYear();
+    const { rows } = await pool.query(
+      `WITH months AS (
+         SELECT generate_series(
+           MAKE_DATE($1::int, 1, 1),
+           MAKE_DATE($1::int, 12, 1),
+           INTERVAL '1 month'
+         )::date AS month_date
+       ),
+       fee_by_month AS (
+         SELECT DATE_TRUNC('month', COALESCE(payment_date, academic_month))::date AS month_date,
+                SUM(amount_paid) AS fee
+         FROM fee_payments
+         WHERE EXTRACT(YEAR FROM COALESCE(payment_date, academic_month)) = $1
+         GROUP BY DATE_TRUNC('month', COALESCE(payment_date, academic_month))
+       ),
+       expense_by_month AS (
+         SELECT DATE_TRUNC('month', created_at)::date AS month_date,
+                SUM(amount) AS expense
+         FROM expenses
+         WHERE EXTRACT(YEAR FROM created_at) = $1
+         GROUP BY DATE_TRUNC('month', created_at)
+       )
+       SELECT
+         TO_CHAR(m.month_date, 'Mon YYYY') AS month_label,
+         m.month_date,
+         COALESCE(f.fee, 0)      AS fee,
+         COALESCE(e.expense, 0)  AS expense,
+         COALESCE(f.fee, 0)      AS total_fee,
+         COALESCE(e.expense, 0)  AS total_expense,
+         (COALESCE(f.fee, 0) - COALESCE(e.expense, 0)) AS balance,
+         (COALESCE(f.fee, 0) - COALESCE(e.expense, 0)) AS t_balance
+       FROM months m
+       LEFT JOIN fee_by_month f ON f.month_date = m.month_date
+       LEFT JOIN expense_by_month e ON e.month_date = m.month_date
+       ORDER BY m.month_date`,
+      [year]
+    );
+    const totals = rows.reduce((acc, r) => {
+      acc.fee += Number(r.fee) || 0;
+      acc.expense += Number(r.expense) || 0;
+      return acc;
+    }, { fee: 0, expense: 0 });
+    totals.balance = totals.fee - totals.expense;
+    res.json({
+      year,
+      months: rows,
+      totals,
+    });
+  } catch (err) { next(err); }
+});
+
 router.get('/', async (req, res, next) => {
   try {
     const { month, class: cls, search } = req.query;

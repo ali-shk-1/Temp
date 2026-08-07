@@ -463,6 +463,8 @@ tr:hover td{ background:var(--row-hover); }
 .ellipsis-cell{ max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .amount-danger{ font-weight:600; color:#c0392b; }
 [data-theme="dark"] .amount-danger{ color:#ff8a7a; }
+.amount-success{ font-weight:600; color:#2d7a4f; }
+[data-theme="dark"] .amount-success{ color:#5fd88f; }
 
 /* Catch-all: kill leftover hardcoded light-mode inline colors in dark mode */
 [data-theme="dark"] [style*="color:#888"],

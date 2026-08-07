@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <title>Total — School Management</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('theme');
+      if(!t){ t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .period-switch{ display:flex; align-items:center; gap:10px; }
+    .period-label{ font-size:13px; font-weight:600; color:var(--text); }
+    .period-label.inactive{ color:var(--muted); font-weight:400; }
+    .bs-summary{ display:flex; flex-wrap:wrap; gap:24px; }
+    .bs-summary .block{ min-width:120px; }
+    .bs-summary .big{ font-size:22px; font-weight:700; }
+    .bs-summary .small{ font-size:12px; color:var(--muted); margin-top:2px; }
+    #bsTableBody td, #bsTableBody th { text-align:right; }
+    #bsTableBody td:first-child, #bsTableBody th:first-child { text-align:left; }
+    tfoot td { font-weight:700; border-top:2px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Balance Sheet</h1>
+      <div class="period-switch">
+        <span class="period-label" id="lblMonth">Month</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="periodToggle" onchange="onPeriodToggle()"/>
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="period-label inactive" id="lblYear">Year</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="filters" id="monthPickerRow">
+        <label class="text-muted" style="font-size:12px;">Month:</label>
+        <input type="month" id="monthPicker" onchange="loadBalanceSheet()"/>
+        <button class="btn btn-outline btn-sm" onclick="setCurrentMonth()">This Month</button>
+      </div>
+      <div class="filters" id="yearPickerRow" style="display:none;">
+        <label class="text-muted" style="font-size:12px;">Year:</label>
+        <select id="yearPicker" onchange="loadBalanceSheet()"></select>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="bs-summary">
+        <div class="block">
+          <div class="big amount-success" id="bsSumFee">Rs. 0</div>
+          <div class="small">FEE</div>
+        </div>
+        <div class="block">
+          <div class="big amount-danger" id="bsSumExpense">Rs. 0</div>
+          <div class="small">Expense</div>
+        </div>
+        <div class="block">
+          <div class="big" id="bsSumBalance">Rs. 0</div>
+          <div class="small">Balance</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title" id="bsTableTitle">Ledger</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left;">Date</th>
+              <th>Fee</th><th>Total Fee</th>
+              <th>Expense</th><th>Total Expense</th>
+              <th>Balance</th><th>T.Balance</th>
+            </tr>
+          </thead>
+          <tbody id="bsTableBody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+          <tfoot>
+            <tr>
+              <td>Total</td>
+              <td id="bsFootFee">—</td>
+              <td>—</td>
+              <td id="bsFootExpense">—</td>
+              <td>—</td>
+              <td id="bsFootBalance">—</td>
+              <td>—</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script src="events.js"></script>
+  <script>
+    checkAuth();
+    renderNav('balance-sheet');
+    bindPanelKeyboardNavigation(document);
+
+    const currentMonthStr = new Date().toISOString().slice(0,7);
+    const currentYear = new Date().getFullYear();
+
+    document.getElementById('monthPicker').value = currentMonthStr;
+
+    const yearSel = document.getElementById('yearPicker');
+    for (let y = currentYear; y >= currentYear - 4; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      yearSel.appendChild(opt);
+    }
+
+    function setCurrentMonth() {
+      document.getElementById('monthPicker').value = currentMonthStr;
+      loadBalanceSheet();
+    }
+
+    function onPeriodToggle() {
+      const isYear = document.getElementById('periodToggle').checked;
+      document.getElementById('lblMonth').classList.toggle('inactive', isYear);
+      document.getElementById('lblYear').classList.toggle('inactive', !isYear);
+      document.getElementById('monthPickerRow').style.display = isYear ? 'none' : '';
+      document.getElementById('yearPickerRow').style.display  = isYear ? '' : 'none';
+      document.getElementById('bsTableTitle').textContent = isYear ? 'Monthly Ledger' : 'Daily Ledger';
+      loadBalanceSheet();
+    }
+
+    // formatMoney() always shows "Rs. 0" for zero/blank — the reference
+    // layout uses a plain dash for zero-value cells, so mirror that here
+    // specifically for this table (rest of the app keeps "Rs. 0").
+    function fmtCell(n) {
+      const v = Number(n) || 0;
+      if (v === 0) return '\u2014';
+      return v.toLocaleString('en-PK', { minimumFractionDigits: 0 });
+    }
+    function fmtSigned(n) {
+      const v = Number(n) || 0;
+      if (v === 0) return '\u2014';
+      const sign = v < 0 ? '-' : '';
+      return sign + Math.abs(v).toLocaleString('en-PK', { minimumFractionDigits: 0 });
+    }
+
+    async function loadBalanceSheet() {
+      const isYear = document.getElementById('periodToggle').checked;
+      const tbody = document.getElementById('bsTableBody');
+      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+
+      try {
+        let rows, totals, dateLabel;
+        if (isYear) {
+          const year = document.getElementById('yearPicker').value || currentYear;
+          const data = await api('GET', `/api/fees/balance-sheet/yearly?year=${year}`);
+          dbg('balance-sheet yearly', data);
+          rows = (data.months || []).map(r => ({ label: r.month_label, ...r }));
+          totals = data.totals || { fee: 0, expense: 0, balance: 0 };
+        } else {
+          const month = document.getElementById('monthPicker').value;
+          if (!month) return;
+          const data = await api('GET', `/api/fees/balance-sheet/monthly?month=${month}`);
+          dbg('balance-sheet monthly', data);
+          rows = (data.days || []).map(r => ({ label: formatDate(r.day), ...r }));
+          totals = data.totals || { fee: 0, expense: 0, balance: 0 };
+        }
+
+        document.getElementById('bsSumFee').textContent = formatMoney(totals.fee);
+        document.getElementById('bsSumExpense').textContent = formatMoney(totals.expense);
+        document.getElementById('bsSumBalance').textContent = formatMoney(totals.balance);
+        document.getElementById('bsFootFee').textContent = formatMoney(totals.fee);
+        document.getElementById('bsFootExpense').textContent = formatMoney(totals.expense);
+        document.getElementById('bsFootBalance').textContent = formatMoney(totals.balance);
+
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty">No data for this period.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = rows.map(r => `
+          <tr>
+            <td style="text-align:left;">${r.label}</td>
+            <td class="${Number(r.fee) > 0 ? 'amount-success' : ''}">${fmtCell(r.fee)}</td>
+            <td>${fmtCell(r.total_fee)}</td>
+            <td class="${Number(r.expense) > 0 ? 'amount-danger' : ''}">${fmtCell(r.expense)}</td>
+            <td>${fmtCell(r.total_expense)}</td>
+            <td class="${Number(r.balance) < 0 ? 'amount-danger' : ''}">${fmtSigned(r.balance)}</td>
+            <td class="${Number(r.t_balance) < 0 ? 'amount-danger' : ''}">${fmtSigned(r.t_balance)}</td>
+          </tr>`).join('');
+      } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    async function init() {
+      await loadMyPermissions();
+      await loadBalanceSheet();
+      connectLiveUpdates({
+        'fees.changed': () => loadBalanceSheet(),
+        'expenses.changed': () => loadBalanceSheet(),
+        'permissions.changed': () => refreshMyPermissions(),
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
