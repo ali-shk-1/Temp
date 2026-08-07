@@ -176,12 +176,12 @@
         <table>
           <thead>
             <tr>
-              <th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
+              <th>#</th><th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
               <th>Father</th><th>Contact</th><th>Email</th><th>Admitted</th><th>Actions</th>
             </tr>
           </thead>
           <tbody id="studentTableBody">
-            <tr><td colspan="8" class="loading">Loading…</td></tr>
+            <tr><td colspan="10" class="loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -211,7 +211,7 @@
         allStudents = normalizeList(res, ['students', 'data']);
         renderTable(allStudents);
       } catch(e) {
-        tbody.innerHTML = `<tr><td colspan="8" class="empty">Failed to load students.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="empty">Failed to load students.</td></tr>`;
       }
     }
 
@@ -219,11 +219,12 @@
       const tbody = document.getElementById('studentTableBody');
       document.getElementById('countLabel').textContent = `${list.length} student${list.length !== 1 ? 's' : ''}`;
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty">No students found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">No students found.</td></tr>';
         return;
       }
-      tbody.innerHTML = list.map(s => `
+      tbody.innerHTML = list.map((s, i) => `
         <tr>
+          <td>${i + 1}</td>
           <td>${s.roll_no}</td>
           <td><strong>${s.first_name} ${s.last_name}</strong></td>
           <td>${s.class}</td>

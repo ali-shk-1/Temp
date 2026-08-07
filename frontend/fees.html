@@ -143,10 +143,10 @@
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th>Roll</th><th>Student</th><th>Class</th><th>Section</th>
+              <th>#</th><th>Roll</th><th>Student</th><th>Class</th><th>Section</th>
               <th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th><th>Action</th>
             </tr></thead>
-            <tbody id="monthlyBody"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
+            <tbody id="monthlyBody"><tr><td colspan="11" class="loading">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -163,8 +163,8 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Student</th><th>Class</th><th>Section</th><th>Month</th><th>Amount Paid</th><th>Time</th><th>Receipt</th></tr></thead>
-            <tbody id="dailyBody"><tr><td colspan="7" class="loading">Select date</td></tr></tbody>
+            <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Section</th><th>Month</th><th>Amount Paid</th><th>Time</th><th>Receipt</th></tr></thead>
+            <tbody id="dailyBody"><tr><td colspan="8" class="loading">Select date</td></tr></tbody>
           </table>
         </div>
         <div id="dailyTotal" style="text-align:right;font-size:13px;font-weight:600;padding:10px 0 0;color:#2d7a4f;"></div>
@@ -184,8 +184,8 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Month</th><th>Roll</th><th>Student</th><th>Class</th><th>Section</th><th>Due</th><th>Paid</th><th>Balance</th><th>Contact</th></tr></thead>
-            <tbody id="monthlyDefaultersBody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
+            <thead><tr><th>#</th><th>Month</th><th>Roll</th><th>Student</th><th>Class</th><th>Section</th><th>Due</th><th>Paid</th><th>Balance</th><th>Contact</th></tr></thead>
+            <tbody id="monthlyDefaultersBody"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -211,8 +211,8 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Month</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th><th>Receipt</th></tr></thead>
-            <tbody id="historyBody"><tr><td colspan="7" class="empty">Select a student above.</td></tr></tbody>
+            <thead><tr><th>#</th><th>Month</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th><th>Receipt</th></tr></thead>
+            <tbody id="historyBody"><tr><td colspan="8" class="empty">Select a student above.</td></tr></tbody>
           </table>
         </div>
         <div id="historyTotal" style="padding:8px 0 0;font-size:13px;color:#555;"></div>
@@ -390,7 +390,7 @@
 
     async function loadMonthlyRecords() {
       const tbody = document.getElementById('monthlyBody');
-      tbody.innerHTML = '<tr><td colspan="10" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="loading">Loading…</td></tr>';
       const month = document.getElementById('monthFilter').value;
       const cls   = document.getElementById('classFilter').value;
       try {
@@ -402,7 +402,7 @@
         loadStats();
         filterMonthly();
       } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty">Failed to load.</td></tr>';
       }
     }
 
@@ -424,7 +424,7 @@
         });
       }
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty">No records found.</td></tr>'; return;
+        tbody.innerHTML = '<tr><td colspan="11" class="empty">No records found.</td></tr>'; return;
       }
       tbody.innerHTML = list.map((r, i) => {
         const due  = +r.amount_due  || 0;
@@ -437,6 +437,7 @@
         else if (paid > 0)            { stCls = 'badge-warning'; stLabel = 'Partial'; }
         else                          { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
         return `<tr>
+          <td>${i + 1}</td>
           <td>${r.roll_no}</td>
           <td>${r.first_name} ${r.last_name}</td>
           <td>${r.class}</td><td>${r.section}</td>
@@ -459,18 +460,19 @@
     async function loadDailyRecords() {
       const tbody = document.getElementById('dailyBody');
       const totalEl = document.getElementById('dailyTotal');
-      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
       const date = document.getElementById('dailyDateFilter').value;
       try {
         const raw  = await api('GET', `/api/fees/daily?date=${date}`);
         const data = normalizeList(raw, ['payments', 'data']);
         if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">No payments on this date.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No payments on this date.</td></tr>';
           totalEl.textContent = '';
           return;
         }
         tbody.innerHTML = data.map((r, i) => `
           <tr>
+            <td>${i + 1}</td>
             <td>${r.first_name} ${r.last_name}</td>
             <td>${r.class}</td><td>${r.section}</td>
             <td>${monthLabel(r.academic_month)}</td>
@@ -482,14 +484,14 @@
         const total = data.reduce((s,r) => s + +r.amount_paid, 0);
         totalEl.textContent = `Total Collected: ${formatMoney(total)}`;
       } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load.</td></tr>';
       }
     }
 
     async function loadMonthlyDefaulters() {
       const tbody = document.getElementById('monthlyDefaultersBody');
       const countLabel = document.getElementById('monthlyDefaultersCountLabel');
-      tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="loading">Loading…</td></tr>';
       countLabel.textContent = '';
       const month = document.getElementById('monthlyDefaulterMonthFilter').value;
       try {
@@ -502,11 +504,11 @@
         const totalCount = data.length;
         countLabel.textContent = `${totalCount} defaulter month${totalCount !== 1 ? 's' : ''} total`;
         if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="9" class="empty">No monthly defaulters. 🎉</td></tr>'; return;
+          tbody.innerHTML = '<tr><td colspan="10" class="empty">No monthly defaulters. 🎉</td></tr>'; return;
         }
         renderMonthlyDefaultersGrouped(raw.months || groupDefaultersByMonth(data));
       } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
         countLabel.textContent = '';
       }
     }
@@ -544,17 +546,21 @@
     function renderMonthlyDefaultersGrouped(months) {
       const tbody = document.getElementById('monthlyDefaultersBody');
       if (!months.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">No monthly defaulters. 🎉</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">No monthly defaulters. 🎉</td></tr>';
         return;
       }
+      let rowCounter = 0;
       tbody.innerHTML = months.map(group => `
         <tr style="background:#f7f7f7;">
-          <td colspan="9" style="font-weight:600;padding:8px 10px;">
+          <td colspan="10" style="font-weight:600;padding:8px 10px;">
             ${monthLabel(group.academic_month)} — ${group.count} defaulter${group.count !== 1 ? 's' : ''}
           </td>
         </tr>
-        ${group.defaulters.map(r => `
+        ${group.defaulters.map(r => {
+          rowCounter += 1;
+          return `
           <tr>
+            <td>${rowCounter}</td>
             <td>${monthLabel(r.academic_month)}</td>
             <td>${r.roll_no}</td>
             <td>${r.first_name} ${r.last_name}</td>
@@ -563,7 +569,8 @@
             <td class="fee-paid">${formatMoney(r.amount_paid)}</td>
             <td class="fee-unpaid">${formatMoney(r.balance)}</td>
             <td>${r.contact_1 || '—'}</td>
-          </tr>`).join('')}
+          </tr>`;
+        }).join('')}
       `).join('');
     }
 
@@ -575,7 +582,7 @@
         String(r.roll_no || '').toLowerCase().includes(q)
       );
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">No matching students.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">No matching students.</td></tr>';
         return;
       }
       renderMonthlyDefaultersGrouped(groupDefaultersByMonth(filtered));
@@ -585,14 +592,14 @@
       const id = document.getElementById('historyStudentSel').value;
       const tbody = document.getElementById('historyBody');
       const totalEl = document.getElementById('historyTotal');
-      if (!id) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Select a student above.</td></tr>'; return; }
-      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+      if (!id) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Select a student above.</td></tr>'; return; }
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
       try {
         const res  = await api('GET', `/api/fees/student/${id}`);
         dbg('student history raw', res);
         const data = normalizeList(res, ['payments', 'fees', 'data']);
         if (!data || !data.length) {
-          tbody.innerHTML = '<tr><td colspan="7" class="empty">No payment history.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" class="empty">No payment history.</td></tr>';
           totalEl.textContent = '';
           return;
         }
@@ -609,6 +616,7 @@
           else if (paid > 0)            { stCls = 'badge-warning'; stLabel = 'Partial'; }
           else                          { stCls = 'badge-danger';  stLabel = 'Unpaid'; }
           return `<tr>
+            <td>${i + 1}</td>
             <td>${monthLabel(r.academic_month)}</td>
             <td>${formatMoney(due)}</td>
             <td class="${paid>=due?'fee-paid':paid>0?'fee-partial':'fee-unpaid'}">${formatMoney(paid)}</td>
@@ -621,7 +629,7 @@
         currentHistoryList = data;
         totalEl.innerHTML = `Total Due: <strong>${formatMoney(totalDue)}</strong> &nbsp;|&nbsp; Total Paid: <strong class="fee-paid">${formatMoney(totalPaid)}</strong> &nbsp;|&nbsp; Outstanding: <strong class="fee-unpaid">${formatMoney(totalDue - totalPaid)}</strong>`;
       } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load.</td></tr>';
       }
     }
 

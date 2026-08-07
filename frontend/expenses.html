@@ -123,8 +123,8 @@
         <div class="section-title" id="expTableTitle">All Expenses</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Actions</th></tr></thead>
-            <tbody id="expTableBody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+            <thead><tr><th>#</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Actions</th></tr></thead>
+            <tbody id="expTableBody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
           </table>
         </div>
         <div id="expTotal" class="amount-danger" style="text-align:right;font-size:13px;padding:10px 0 0;"></div>
@@ -247,7 +247,7 @@ async function loadStats() {
 }
     async function loadExpenses() {
       const tbody = document.getElementById('expTableBody');
-      tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
       const from = document.getElementById('dateFrom').value;
       const to   = document.getElementById('dateTo').value;
       const cat  = document.getElementById('catFilter').value;
@@ -263,14 +263,15 @@ const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '')
       dbg('expenses raw', raw);
       const data = normalizeList(raw, ['expenses', 'data', 'results']);
       if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty">No expenses found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No expenses found.</td></tr>';
           document.getElementById('expTotal').textContent = '';
           renderCatBreakdown([]);
           return;
         }
         const total = data.reduce((s,r) => s + +r.amount, 0);
-        tbody.innerHTML = data.map(r => `
+        tbody.innerHTML = data.map((r, i) => `
           <tr>
+            <td>${i + 1}</td>
             <td>${formatDate(r.created_at)}</td>
             <td><span class="badge badge-info">${r.category_name || '—'}</span></td>
             <td class="ellipsis-cell" title="${r.description||''}">${r.description || '—'}</td>
@@ -284,7 +285,7 @@ const url = '/api/expenses' + (params.toString() ? '?' + params.toString() : '')
         document.getElementById('expTotal').textContent = `Total: ${formatMoney(total)}`;
         renderCatBreakdown(data);
       } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load.</td></tr>';
       }
     }
 

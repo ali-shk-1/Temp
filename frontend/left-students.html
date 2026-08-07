@@ -116,11 +116,11 @@
         <table>
           <thead>
             <tr>
-              <th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
+              <th>#</th><th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
               <th>Admission</th><th>Left Date</th><th>Reason</th><th>Actions</th>
             </tr>
           </thead>
-          <tbody id="leftStudentsBody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+          <tbody id="leftStudentsBody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -144,24 +144,25 @@
 
     async function loadLeftStudents() {
       const tbody = document.getElementById('leftStudentsBody');
-      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
       try {
         const res = await api('GET', '/api/students/left');
         allLeftStudents = normalizeList(res, ['former_students', 'students', 'data']);
         renderTable();
       } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load left students.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">Failed to load left students.</td></tr>';
       }
     }
 
     function renderTable() {
       const tbody = document.getElementById('leftStudentsBody');
       if (!allLeftStudents.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty">No left students found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">No left students found.</td></tr>';
         return;
       }
-      tbody.innerHTML = allLeftStudents.map(s => `
+      tbody.innerHTML = allLeftStudents.map((s, i) => `
         <tr>
+          <td>${i + 1}</td>
           <td>${s.roll_no || '—'}</td>
           <td>${s.first_name} ${s.last_name}</td>
           <td>${s.class || '—'}</td>

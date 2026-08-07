@@ -71,12 +71,12 @@
         <table>
           <thead>
             <tr>
-              <th>Student</th><th>Class</th><th>Section</th>
+              <th>#</th><th>Student</th><th>Class</th><th>Section</th>
               <th>Amount Due</th><th>Amount Paid</th><th>Status</th><th>Payment Date</th>
             </tr>
           </thead>
           <tbody id="monthlySummaryBody">
-            <tr><td colspan="7" class="loading">Loading…</td></tr>
+            <tr><td colspan="8" class="loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -88,10 +88,10 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr>
+            <tr><th>#</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr>
           </thead>
           <tbody id="recentExpenses">
-            <tr><td colspan="4" class="loading">Loading…</td></tr>
+            <tr><td colspan="5" class="loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -211,10 +211,11 @@
         el.innerHTML = `
           <div class="table-wrap">
           <table>
-            <thead><tr><th>Student</th><th>Class</th><th>Amount Paid</th></tr></thead>
+            <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Amount Paid</th></tr></thead>
             <tbody>
-              ${data.map(r => `
+              ${data.map((r, i) => `
                 <tr>
+                  <td>${i + 1}</td>
                   <td>${r.first_name} ${r.last_name}</td>
                   <td>${r.class}-${r.section}</td>
                   <td class="fee-paid">${formatMoney(r.amount_paid)}</td>
@@ -249,10 +250,11 @@
           </div>
           <div class="table-wrap">
           <table>
-            <thead><tr><th>Student</th><th>Class</th><th>Overdue Months</th><th>Due</th><th>Paid</th></tr></thead>
+            <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Overdue Months</th><th>Due</th><th>Paid</th></tr></thead>
             <tbody>
-              ${data.slice(0, 8).map(r => `
+              ${data.slice(0, 8).map((r, i) => `
                 <tr>
+                  <td>${i + 1}</td>
                   <td>${r.first_name} ${r.last_name}</td>
                   <td>${r.class}-${r.section}</td>
                   <td>${r.overdue_months || 0}</td>
@@ -274,18 +276,18 @@
     // ── Monthly Fee Summary table ─────────────────────────────────────────────
     async function loadMonthlySummary() {
       const tbody = document.getElementById('monthlySummaryBody');
-      tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
 
       const month = monthPicker.value + '-01';              // "YYYY-MM-01"
       try {
         const data = toList(await api('GET', `/api/fees?month=${month}`));
 
         if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="7" class="empty">No records for this month.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" class="empty">No records for this month.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = data.map(r => {
+        tbody.innerHTML = data.map((r, i) => {
           const due  = +r.amount_due  || 0;
           const paid = +r.amount_paid || 0;
           let status, cls;
@@ -294,6 +296,7 @@
           else                        { status = 'Unpaid';  cls = 'badge-danger';  }
 
           return `<tr>
+            <td>${i + 1}</td>
             <td>${r.first_name} ${r.last_name}</td>
             <td>${r.class}</td>
             <td>${r.section}</td>
@@ -305,7 +308,7 @@
         }).join('');
 
       } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">Could not load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">Could not load.</td></tr>';
       }
     }
 
@@ -316,12 +319,13 @@
         const data = toList(await api('GET', '/api/expenses?limit=10'));
 
         if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="4" class="empty">No expenses yet.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" class="empty">No expenses yet.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = data.map(r => `
+        tbody.innerHTML = data.map((r, i) => `
           <tr>
+            <td>${i + 1}</td>
             <td>${formatDate(r.created_at)}</td>
             <td>${r.category_name || '—'}</td>
             <td>${r.description   || '—'}</td>
@@ -329,7 +333,7 @@
           </tr>`).join('');
 
       } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty">Could not load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">Could not load.</td></tr>';
       }
     }
 

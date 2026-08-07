@@ -117,7 +117,7 @@
         <table>
           <thead>
             <tr>
-              <th>Name</th><th>Designation</th><th>CNIC</th>
+              <th>#</th><th>Name</th><th>Designation</th><th>CNIC</th>
               <th>Phone</th><th>Salary</th><th>Actions</th>
             </tr>
           </thead>
@@ -185,8 +185,9 @@
         tbody.innerHTML = '<tr><td colspan="7" class="empty">No staff found.</td></tr>';
         return;
       }
-      tbody.innerHTML = list.map(s => `
+      tbody.innerHTML = list.map((s, i) => `
         <tr>
+          <td>${i + 1}</td>
           <td><strong>${s.name}</strong></td>
           <td>${s.designation_title || '—'}</td>
           <td>${s.cnic}</td>

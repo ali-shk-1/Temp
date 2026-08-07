@@ -90,11 +90,11 @@
         <table>
           <thead>
             <tr>
-              <th>Name</th><th>Designation</th><th>CNIC</th><th>Phone</th>
+              <th>#</th><th>Name</th><th>Designation</th><th>CNIC</th><th>Phone</th>
               <th>Salary</th><th>Left Date</th><th>Reason</th><th>Actions</th>
             </tr>
           </thead>
-          <tbody id="leftStaffBody"><tr><td colspan="8" class="loading">Loading…</td></tr></tbody>
+          <tbody id="leftStaffBody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -118,24 +118,25 @@
 
     async function loadLeftStaff() {
       const tbody = document.getElementById('leftStaffBody');
-      tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
       try {
         const res = await api('GET', '/api/staff/left');
         allLeftStaff = normalizeList(res, ['former_staff', 'staff', 'data']);
         renderTable();
       } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load left staff.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">Failed to load left staff.</td></tr>';
       }
     }
 
     function renderTable() {
       const tbody = document.getElementById('leftStaffBody');
       if (!allLeftStaff.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty">No left staff found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">No left staff found.</td></tr>';
         return;
       }
-      tbody.innerHTML = allLeftStaff.map(s => `
+      tbody.innerHTML = allLeftStaff.map((s, i) => `
         <tr>
+          <td>${i + 1}</td>
           <td><strong>${s.name}</strong></td>
           <td>${s.designation || '—'}</td>
           <td>${s.cnic || '—'}</td>
