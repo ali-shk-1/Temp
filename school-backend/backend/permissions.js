@@ -94,6 +94,7 @@ const PAGE_KEYS = [
   { key: 'staff',          label: 'Staff' },
   { key: 'left-staff',     label: 'Left Staff' },
   { key: 'fees',           label: 'Fees' },
+  { key: 'receipts',       label: 'Receipts' },
   { key: 'expenses',       label: 'Expenses' },
   { key: 'tracking',       label: 'Tracking' },
   { key: 'balance-sheet',  label: 'Total' },

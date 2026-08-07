@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#4f46e5"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="School Mgmt"/>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <title>Receipts — School Management</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('theme');
+      if(!t){ t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .mode-pill { font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; }
+    .mode-pill.paper   { background:var(--panel-2, #eef1f7); color:#3a4a6b; }
+    .mode-pill.thermal { background:#fdeee9; color:#b3542b; }
+    #receiptsBody td, #receiptsBody th { text-align:left; }
+  </style>
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Receipts</h1>
+    </div>
+
+    <div class="text-muted" style="font-size:12px;margin-bottom:12px;">
+      Every fee payment gets a sequential receipt number automatically.
+      Use this list to confirm a printed or reported receipt number is legitimate —
+      no receipt images are stored here, only the record details.
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="filters">
+        <label class="text-muted" style="font-size:12px;">From:</label>
+        <input type="date" id="receiptFrom" onchange="loadReceipts()"/>
+        <label class="text-muted" style="font-size:12px;">To:</label>
+        <input type="date" id="receiptTo" onchange="loadReceipts()"/>
+        <input type="text" id="receiptSearch" placeholder="Search receipt #, name, or roll no…"
+               oninput="filterReceipts()" class="mini-input" style="width:220px;"/>
+        <button class="btn btn-outline btn-sm" onclick="clearReceiptFilters()">Clear</button>
+        <span id="receiptsCountLabel" style="font-size:13px;font-weight:600;color:var(--muted);margin-left:auto;"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Receipt #</th>
+              <th>Student</th>
+              <th>Roll</th>
+              <th>Class</th>
+              <th>Month</th>
+              <th>Due</th>
+              <th>Paid</th>
+              <th>Mode</th>
+              <th>Issued</th>
+              <th>Issued By</th>
+            </tr>
+          </thead>
+          <tbody id="receiptsBody"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="api.js"></script>
+  <script src="nav.js"></script>
+  <script src="events.js"></script>
+  <script>
+    checkAuth();
+    renderNav('receipts');
+    bindPanelKeyboardNavigation(document);
+
+    let currentReceiptsList = [];
+
+    function clearReceiptFilters() {
+      document.getElementById('receiptFrom').value = '';
+      document.getElementById('receiptTo').value = '';
+      document.getElementById('receiptSearch').value = '';
+      loadReceipts();
+    }
+
+    async function loadReceipts() {
+      const tbody = document.getElementById('receiptsBody');
+      tbody.innerHTML = '<tr><td colspan="10" class="loading">Loading…</td></tr>';
+      try {
+        const from = document.getElementById('receiptFrom').value;
+        const to   = document.getElementById('receiptTo').value;
+        const params = [];
+        if (from) params.push(`from=${from}`);
+        if (to)   params.push(`to=${to}`);
+        const qs = params.length ? `?${params.join('&')}` : '';
+        const data = await api('GET', `/api/fees/receipts${qs}`);
+        dbg('receipts', data);
+        currentReceiptsList = data.receipts || [];
+        filterReceipts();
+      } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
+      }
+    }
+
+    function filterReceipts() {
+      const q = (document.getElementById('receiptSearch').value || '').toLowerCase().trim();
+      const tbody = document.getElementById('receiptsBody');
+
+      const filtered = !q ? currentReceiptsList : currentReceiptsList.filter(r =>
+        String(r.receipt_no).includes(q) ||
+        String(r.roll_no || '').toLowerCase().includes(q) ||
+        String(r.student_name || '').toLowerCase().includes(q)
+      );
+
+      document.getElementById('receiptsCountLabel').textContent =
+        `${filtered.length} receipt${filtered.length === 1 ? '' : 's'}`;
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">No receipts found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(r => `
+        <tr>
+          <td><strong>#${r.receipt_no}</strong></td>
+          <td>${r.student_name || '—'}</td>
+          <td>${r.roll_no ?? '—'}</td>
+          <td>${r.class || ''}${r.section ? '-' + r.section : ''}</td>
+          <td>${monthLabel(r.academic_month)}</td>
+          <td>${formatMoney(r.amount_due)}</td>
+          <td class="amount-success">${formatMoney(r.amount_paid)}</td>
+          <td><span class="mode-pill ${r.print_mode === 'thermal' ? 'thermal' : 'paper'}">${r.print_mode === 'thermal' ? 'Thermal' : 'Paper'}</span></td>
+          <td>${formatDate(r.issued_at)}</td>
+          <td>${r.issued_by || '—'}</td>
+        </tr>`).join('');
+    }
+
+    // Same month-label formatting used across the Fees pages, so a
+    // stored 'YYYY-MM-01' date reads as e.g. "August 2026" here too.
+    function monthLabel(d) {
+      if (!d) return '—';
+      const m = String(d).match(/^(\d{4})-(\d{2})/);
+      if (!m) return '—';
+      const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      return `${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+    }
+
+    async function init() {
+      await loadMyPermissions();
+      await loadReceipts();
+      connectLiveUpdates({
+        'fees.changed': () => loadReceipts(),
+        'permissions.changed': () => refreshMyPermissions(),
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

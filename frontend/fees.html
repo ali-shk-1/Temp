@@ -99,7 +99,17 @@
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">Fee Management</h1>
-      <button class="btn btn-success" id="recordPaymentBtn" onclick="openPayModal()" style="display:none;">+ Record Payment</button>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="period-switch" title="Choose which receipt layout printing uses">
+          <span class="period-label" id="lblPaperMode">Paper</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="printModeToggle" onchange="onPrintModeToggle()"/>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="period-label inactive" id="lblThermalMode">Thermal</span>
+        </div>
+        <button class="btn btn-success" id="recordPaymentBtn" onclick="openPayModal()" style="display:none;">+ Record Payment</button>
+      </div>
     </div>
 
     <!-- Summary Stats -->
@@ -228,6 +238,9 @@
     }
     .tab-btn.active { color:#1a1a2e;border-bottom-color:#1a1a2e; }
     .tab-btn:hover { color:#1a1a2e; }
+    .period-switch{ display:flex; align-items:center; gap:10px; }
+    .period-label{ font-size:13px; font-weight:600; color:var(--text); }
+    .period-label.inactive{ color:var(--muted); font-weight:400; }
   </style>
 
   <script src="api.js"></script>
@@ -253,6 +266,30 @@
     let currentHistoryList = [];
     let currentHistoryStudentId = null;
     let currentReceiptData = null; // set right before printing/showing a receipt
+
+    // ---- Paper vs Thermal print mode ----
+    // Persisted per-browser so staff don't have to re-toggle every visit.
+    // 'paper' = the existing full-page receipt layout (already implemented
+    // below in printReceipt()). 'thermal' = a narrow 58/80mm-style layout
+    // sized for thermal receipt printers, generated in printThermalReceipt().
+    function getPrintMode() {
+      return localStorage.getItem('feePrintMode') === 'thermal' ? 'thermal' : 'paper';
+    }
+    function setPrintMode(mode) {
+      localStorage.setItem('feePrintMode', mode === 'thermal' ? 'thermal' : 'paper');
+    }
+    function onPrintModeToggle() {
+      const isThermal = document.getElementById('printModeToggle').checked;
+      setPrintMode(isThermal ? 'thermal' : 'paper');
+      document.getElementById('lblPaperMode').classList.toggle('inactive', isThermal);
+      document.getElementById('lblThermalMode').classList.toggle('inactive', !isThermal);
+    }
+    function initPrintModeToggle() {
+      const isThermal = getPrintMode() === 'thermal';
+      document.getElementById('printModeToggle').checked = isThermal;
+      document.getElementById('lblPaperMode').classList.toggle('inactive', isThermal);
+      document.getElementById('lblThermalMode').classList.toggle('inactive', !isThermal);
+    }
 
     // Fee permissions are now driven by ali's Permissions page (fees.add /
     // fees.edit / fees.delete) instead of being hardcoded to a single role.
@@ -283,6 +320,7 @@
     }
 
     async function init() {
+      initPrintModeToggle();
       await loadMyPermissions();
       applyPermissionUI();
       await loadStudents();
@@ -803,7 +841,8 @@
           student_id:     parseInt(studentId),
           academic_month: month + '-01',
           amount_due:     due,
-          amount_paid:    paid
+          amount_paid:    paid,
+          print_mode:     getPrintMode()
         });
         showToast('Payment recorded!', 'success');
         closePayModal();
@@ -839,7 +878,7 @@
       const due  = +r.amount_due  || 0;
       const paid = +r.amount_paid || 0;
       return {
-        receipt_no:     r.payment_id || '—',
+        receipt_no:     r.receipt_no || r.payment_id || '—',
         roll_no:        roll_no ?? '—',
         student_name:   `${first_name} ${last_name}`.trim() || '—',
         class_section:  `${cls || ''}${section ? '-' + section : ''}` || '—',
@@ -893,9 +932,19 @@
       printReceipt();
     }
 
+    // Dispatches to the full-page ("paper") or narrow thermal-printer
+    // layout depending on the toggle in the page header. Both layouts are
+    // driven by the same currentReceiptData shape, so nothing upstream
+    // (openReceiptModal, printMonthlyReceipt, etc.) needs to know which
+    // one actually renders.
+    function printReceipt() {
+      if (getPrintMode() === 'thermal') { printThermalReceipt(); return; }
+      printPaperReceipt();
+    }
+
     // Opens a clean, printable receipt in a new tab with the school
     // name/logo, student details and fee details, then triggers print.
-    function printReceipt() {
+    function printPaperReceipt() {
       const d = currentReceiptData;
       if (!d) return;
 
@@ -970,6 +1019,90 @@
       <div class="sign">Received By</div>
       <div class="sign">Stamp</div>
     </div>
+  </div>
+  <script>
+    window.onload = function () { window.print(); };
+  <\/script>
+</body>
+</html>`;
+
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    }
+
+    // Narrow, thermal-printer-friendly receipt layout (58mm/80mm roll
+    // paper style) — same data as the paper layout, just laid out for a
+    // tall, narrow strip with a monospace-ish look and no logo image
+    // (thermal printers are usually monochrome and slow to render
+    // images, so we keep it to text + a simple divider).
+    function printThermalReceipt() {
+      const d = currentReceiptData;
+      if (!d) return;
+
+      const win = window.open('', '_blank');
+      if (!win) { showToast('Please allow pop-ups to print the receipt.', 'error'); return; }
+
+      const line = () => '--------------------------------';
+      const row = (label, value) => `<div class="row"><span>${label}</span><span>${value}</span></div>`;
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>Receipt — ${d.student_name}</title>
+<style>
+  * { box-sizing: border-box; }
+  /* 80mm thermal roll width by default; most thermal drivers will scale
+     this down automatically for 58mm stock too. Adjust @page size below
+     if your printer needs an exact match. */
+  @page { size: 80mm auto; margin: 0; }
+  body {
+    font-family: 'Courier New', Consolas, monospace;
+    color: #000; width: 76mm; margin: 0 auto; padding: 6px 4px;
+    font-size: 12px; line-height: 1.5;
+  }
+  .center { text-align: center; }
+  .school-name { font-size: 14px; font-weight: 700; text-transform: uppercase; }
+  .sub { font-size: 10px; margin-top: 2px; }
+  .divider { border-top: 1px dashed #000; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; gap: 8px; }
+  .row span:first-child { color: #333; }
+  .title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 4px 0; }
+  .amount-paid { font-weight: 700; }
+  .footer { margin-top: 10px; font-size: 10px; text-align: center; }
+  .footer .thanks { font-weight: 700; margin-bottom: 2px; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="school-name">${SCHOOL_NAME}</div>
+    <div class="sub">Fee Payment Receipt</div>
+  </div>
+  <div class="divider"></div>
+
+  ${row('Receipt No.', d.receipt_no)}
+  ${row('Date', d.payment_date.toLocaleDateString('en-GB'))}
+  <div class="divider"></div>
+
+  <div class="title center">Student Details</div>
+  ${row('Name', d.student_name)}
+  ${row('Roll No.', d.roll_no)}
+  ${row('Class', d.class_section)}
+  ${row('Father', d.father_name)}
+  <div class="divider"></div>
+
+  <div class="title center">Fee Details</div>
+  ${row('Month', d.academic_month)}
+  ${row('Amount Due', d.amount_due.toLocaleString('en-PK'))}
+  ${row('Amount Paid', `<span class="amount-paid">${d.amount_paid.toLocaleString('en-PK')}</span>`)}
+  ${row('Balance', d.balance.toLocaleString('en-PK'))}
+  <div class="divider"></div>
+
+  <div class="footer">
+    <div class="thanks">Thank you!</div>
+    <div>Stamp</div>
   </div>
   <script>
     window.onload = function () { window.print(); };

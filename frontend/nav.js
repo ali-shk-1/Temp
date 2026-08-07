@@ -20,6 +20,7 @@
 const ALL_PAGES = [
   { href: 'dashboard.html', label: 'Dashboard', key: 'dashboard' },
   { href: 'fees.html',      label: 'Fees',      key: 'fees'      },
+  { href: 'receipts.html',  label: 'Receipts',  key: 'receipts'  },
   { href: 'expenses.html',  label: 'Expenses',  key: 'expenses'  },
   { href: 'tracking.html',      label: 'Tracking', key: 'tracking'      },
   { href: 'balance-sheet.html', label: 'Total',     key: 'balance-sheet' },

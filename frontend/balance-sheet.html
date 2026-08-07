@@ -37,6 +37,9 @@
     #bsTableBody td, #bsTableBody th { text-align:right; }
     #bsTableBody td:first-child, #bsTableBody th:first-child { text-align:left; }
     tfoot td { font-weight:700; border-top:2px solid var(--border); }
+    /* Sundays highlighted in red across the whole row, in the daily view */
+    #bsTableBody tr.is-sunday td { color:#e0433f; }
+    #bsTableBody tr.is-sunday td:first-child { font-weight:600; }
   </style>
 </head>
 <body>
@@ -164,6 +167,17 @@
       return sign + Math.abs(v).toLocaleString('en-PK', { minimumFractionDigits: 0 });
     }
 
+    // Parses a plain 'YYYY-MM-DD' date string as a local calendar date
+    // (not UTC) so day-of-week comes out right regardless of the
+    // browser's timezone, then reports whether it's a Sunday.
+    function isSunday(dayStr) {
+      const m = String(dayStr || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return false;
+      const [, y, mo, d] = m;
+      const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+      return dt.getDay() === 0;
+    }
+
     async function loadBalanceSheet() {
       const isYear = document.getElementById('periodToggle').checked;
       const tbody = document.getElementById('bsTableBody');
@@ -182,7 +196,7 @@
           if (!month) return;
           const data = await api('GET', `/api/fees/balance-sheet/monthly?month=${month}`);
           dbg('balance-sheet monthly', data);
-          rows = (data.days || []).map(r => ({ label: formatDate(r.day), ...r }));
+          rows = (data.days || []).map(r => ({ label: formatDate(r.day), sunday: isSunday(r.day), ...r }));
           totals = data.totals || { fee: 0, expense: 0, balance: 0 };
         }
 
@@ -199,8 +213,8 @@
         }
 
         tbody.innerHTML = rows.map(r => `
-          <tr>
-            <td style="text-align:left;">${r.label}</td>
+          <tr class="${r.sunday ? 'is-sunday' : ''}">
+            <td style="text-align:left;">${r.label}${r.sunday ? ' <span style="font-size:11px;">(Sun)</span>' : ''}</td>
             <td class="${Number(r.fee) > 0 ? 'amount-success' : ''}">${fmtCell(r.fee)}</td>
             <td>${fmtCell(r.total_fee)}</td>
             <td class="${Number(r.expense) > 0 ? 'amount-danger' : ''}">${fmtCell(r.expense)}</td>

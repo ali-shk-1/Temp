@@ -106,9 +106,35 @@ router.post('/', can('fees.add'), async (req, res, next) => {
       [rows[0].payment_id, student_id, academic_month]
     );
 
+    // Issue a sequential, verifiable receipt for this payment. receipt_no
+    // is a plain auto-increment (1, 2, 3, ...) distinct from payment_id,
+    // so front-desk staff and parents can confirm a printed receipt is
+    // legitimate by checking it maps back to a real payment here.
+    const paymentRow = receipt.rows[0];
+    let receiptNo = null;
+    if (paymentRow) {
+      const studentName = `${paymentRow.first_name || ''} ${paymentRow.last_name || ''}`.trim();
+      const receiptInsert = await client.query(
+        `INSERT INTO payment_receipts
+           (payment_id, student_id, roll_no, student_name, class, section, academic_month, amount_due, amount_paid, print_mode, issued_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (payment_id) DO UPDATE SET payment_id = EXCLUDED.payment_id
+         RETURNING receipt_no`,
+        [
+          rows[0].payment_id, student_id, paymentRow.roll_no, studentName,
+          paymentRow.class, paymentRow.section, academic_month,
+          paymentRow.amount_due, paymentRow.amount_paid,
+          (req.body.print_mode === 'thermal' ? 'thermal' : 'paper'),
+          req.user && req.user.username ? req.user.username : null
+        ]
+      );
+      receiptNo = receiptInsert.rows[0] ? receiptInsert.rows[0].receipt_no : null;
+    }
+
     await client.query('COMMIT');
 
     const payment = receipt.rows[0];
+    if (payment) payment.receipt_no = receiptNo;
     if (payment && payment.email && Number(payment.amount_paid) > 0) {
       // academic_month is a plain 'YYYY-MM-DD' string (pg DATE type parser
       // returns strings now) — parse it directly instead of routing through
@@ -186,9 +212,11 @@ router.get('/student/:student_id', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT fp.*,
               (fp.amount_due - fp.amount_paid) AS balance,
-              s.first_name, s.last_name, s.roll_no, s.class, s.section
+              s.first_name, s.last_name, s.roll_no, s.class, s.section,
+              pr.receipt_no
        FROM fee_payments fp
        JOIN students s ON s.student_id = fp.student_id
+       LEFT JOIN payment_receipts pr ON pr.payment_id = fp.payment_id
        WHERE fp.student_id = $1
        ORDER BY fp.academic_month DESC`,
       [req.params.student_id]
@@ -605,9 +633,11 @@ router.get('/daily', async (req, res, next) => {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const { rows } = await pool.query(
       `SELECT fp.payment_id, fp.student_id, fp.academic_month, fp.amount_due, fp.amount_paid,
-              fp.payment_date, s.first_name, s.last_name, s.class, s.section
+              fp.payment_date, s.first_name, s.last_name, s.class, s.section,
+              pr.receipt_no
        FROM fee_payments fp
        JOIN students s ON s.student_id = fp.student_id
+       LEFT JOIN payment_receipts pr ON pr.payment_id = fp.payment_id
        WHERE DATE(fp.payment_date) = $1
        ORDER BY fp.payment_date DESC`,
       [date]
@@ -660,6 +690,55 @@ router.delete('/:payment_id', can('fees.delete'), async (req, res, next) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Payment record not found.' });
     res.json({ message: 'Payment deleted.' });
     broadcast('fees.changed', { action: 'deleted', payment_id: rows[0].payment_id });
+  } catch (err) { next(err); }
+});
+
+// ---------------- Receipts (verification list) ----------------
+//
+// Row-wise listing of every receipt ever issued — used by the Receipts
+// nav page so front-desk staff can look up "is receipt #N legit?" without
+// storing/serving an actual receipt image (keeps the table tiny). Supports
+// optional date-range and search filters.
+router.get('/receipts', async (req, res, next) => {
+  try {
+    const { from, to, search } = req.query;
+    let query = `
+      SELECT pr.receipt_no, pr.payment_id, pr.student_id, pr.roll_no,
+             pr.student_name, pr.class, pr.section, pr.academic_month,
+             pr.amount_due, pr.amount_paid, pr.print_mode, pr.issued_at, pr.issued_by
+      FROM payment_receipts pr
+      WHERE 1=1`;
+    const vals = [];
+    let idx = 1;
+    if (from) { query += ` AND DATE(pr.issued_at) >= $${idx++}`; vals.push(from); }
+    if (to)   { query += ` AND DATE(pr.issued_at) <= $${idx++}`; vals.push(to); }
+    if (search) {
+      query += ` AND (
+        LOWER(pr.student_name) LIKE $${idx} OR
+        CAST(pr.roll_no AS TEXT) LIKE $${idx} OR
+        CAST(pr.receipt_no AS TEXT) LIKE $${idx}
+      )`;
+      vals.push(`%${search.toLowerCase()}%`);
+      idx++;
+    }
+    query += ` ORDER BY pr.receipt_no DESC`;
+    const { rows } = await pool.query(query, vals);
+    res.json({ count: rows.length, receipts: rows });
+  } catch (err) { next(err); }
+});
+
+// Single-receipt lookup — "is this receipt number legit" verification.
+router.get('/receipts/:receipt_no', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT pr.*, fp.payment_date
+       FROM payment_receipts pr
+       LEFT JOIN fee_payments fp ON fp.payment_id = pr.payment_id
+       WHERE pr.receipt_no = $1`,
+      [req.params.receipt_no]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'No receipt found with that number.', valid: false });
+    res.json({ valid: true, receipt: rows[0] });
   } catch (err) { next(err); }
 });
 
