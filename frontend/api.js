@@ -95,6 +95,14 @@ function formatMoney(n) {
   return 'Rs. ' + Number(n || 0).toLocaleString('en-PK', { minimumFractionDigits: 0 });
 }
 
+// Same as formatMoney but returns HTML with "Rs." wrapped in a smaller
+// span, for stat-card values where the currency prefix reading the same
+// size as the number looks oversized (e.g. dashboard summary cards).
+function formatMoneyHtml(n) {
+  const amount = Number(n || 0).toLocaleString('en-PK', { minimumFractionDigits: 0 });
+  return '<span class="currency">Rs.</span> ' + amount;
+}
+
 function normalizeList(res, hints = []) {
   if (!res) return [];
   if (Array.isArray(res)) return res;

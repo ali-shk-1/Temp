@@ -234,10 +234,10 @@
   <style>
     .tab-btn {
       background:none;border:none;padding:8px 18px;font-size:13px;cursor:pointer;
-      color:#666;border-bottom:2px solid transparent;font-weight:500;
+      color:var(--muted);border-bottom:2px solid transparent;font-weight:500;
     }
-    .tab-btn.active { color:#1a1a2e;border-bottom-color:#1a1a2e; }
-    .tab-btn:hover { color:#1a1a2e; }
+    .tab-btn.active { color:var(--text);border-bottom-color:var(--text); }
+    .tab-btn:hover { color:var(--text); }
     .period-switch{ display:flex; align-items:center; gap:10px; }
     .period-label{ font-size:13px; font-weight:600; color:var(--text); }
     .period-label.inactive{ color:var(--muted); font-weight:400; }
@@ -589,7 +589,7 @@
       }
       let rowCounter = 0;
       tbody.innerHTML = months.map(group => `
-        <tr style="background:#f7f7f7;">
+        <tr class="group-header-row">
           <td colspan="10" style="font-weight:600;padding:8px 10px;">
             ${monthLabel(group.academic_month)} — ${group.count} defaulter${group.count !== 1 ? 's' : ''}
           </td>

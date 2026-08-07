@@ -43,7 +43,7 @@
     <div class="stats-grid">
       <div class="stat-card"><div class="label">Total Students</div><div class="value" id="statStudents">—</div></div>
       <div class="stat-card"><div class="label">Total Staff</div><div class="value" id="statStaff">—</div></div>
-      <div class="stat-card"><div class="label">Fee Collected (Month)</div><div class="value" id="statFeeMonth">—</div></div>
+      <div class="stat-card"><div class="label">Fee Collected</div><div class="value" id="statFeeMonth">—</div></div>
       <div class="stat-card"><div class="label">Expenses (Month)</div><div class="value" id="statExpMonth">—</div></div>
       <div class="stat-card"><div class="label">Overdue Months</div><div class="value" id="statOverdueMonths">—</div></div>
       <div class="stat-card"><div class="label">Balance (Month)</div><div class="value" id="statBalance">—</div></div>
@@ -171,7 +171,7 @@
 
     const feeSumVal = feeSumRes.status === 'fulfilled' ? feeSumRes.value : null;
     const collected = +(feeSumVal?.total_paid ?? feeSumVal?.total_collected ?? feeSumVal?.total ?? 0);
-    document.getElementById('statFeeMonth').textContent = formatMoney(collected);
+    document.getElementById('statFeeMonth').innerHTML = formatMoneyHtml(collected);
 
     const overdueMonthsVal = defaultersRes.status === 'fulfilled' ? defaultersRes.value : null;
     const overdueMonths = Number.isFinite(Number(overdueMonthsVal?.total_overdue_months))
@@ -184,12 +184,12 @@
     const expData = toList(rawExp); // Use your helper to extract the array
     
     const expenses = expData.reduce((s, r) => s + (+r.amount || 0), 0);
-    document.getElementById('statExpMonth').textContent = formatMoney(expenses);
+    document.getElementById('statExpMonth').innerHTML = formatMoneyHtml(expenses);
 
     // Balance
     const balance = collected - expenses;
     const balEl = document.getElementById('statBalance');
-    balEl.textContent = formatMoney(balance);
+    balEl.innerHTML = formatMoneyHtml(balance);
     balEl.style.color = balance >= 0 ? '#2d7a4f' : '#c0392b';
 
   } catch(e) { console.error('loadStats error:', e); }

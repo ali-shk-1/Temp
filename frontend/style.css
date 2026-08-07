@@ -17,11 +17,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  height: 52px;
+  padding: 10px 24px;
+  min-height: 52px;
   position: sticky;
   top: 0;
   z-index: 100;
+  flex-wrap: wrap;
+  row-gap: 8px;
+  column-gap: 16px;
 }
 .navbar .brand {
   font-size: 16px;
@@ -29,15 +32,24 @@ body {
   letter-spacing: 0.5px;
   color: #fff;
   text-decoration: none;
+  white-space: nowrap;
+}
+.navbar nav {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  column-gap: 4px;
+  align-items: center;
 }
 .navbar nav a {
   color: #ccc;
   text-decoration: none;
-  margin-left: 20px;
+  margin-left: 16px;
   font-size: 13px;
   padding: 4px 8px;
   border-radius: 4px;
   transition: background 0.15s;
+  white-space: nowrap;
 }
 .navbar nav a:hover, .navbar nav a.active {
   background: rgba(255,255,255,0.12);
@@ -45,9 +57,11 @@ body {
 }
 .navbar-right {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   margin-left: auto;
+  row-gap: 8px;
 }
 .navbar-user {
   font-size: 12px;
@@ -65,6 +79,7 @@ body {
   cursor: pointer;
   font-size: 13px;
   margin-left: 20px;
+  white-space: nowrap;
 }
 .navbar .logout-btn:hover { border-color: #fff; color: #fff; }
 
@@ -107,6 +122,7 @@ body {
 }
 .stat-card .label { font-size: 13px; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 .stat-card .value { font-size: 28px; font-weight: 700; color: #1a1a2e; }
+.stat-card .value .currency { font-size: 16px; font-weight: 600; }
 .stat-card .sub { font-size: 12px; color: #888; margin-top: 3px; }
 
 /* TABLE */
@@ -399,16 +415,31 @@ body{ background:var(--bg); color:var(--text); font-size:calc(14px * var(--font-
 th{ background:var(--th-bg); color:var(--th-text); border-bottom-color:var(--border); }
 td{ color:var(--td-text); border-bottom-color:var(--border); }
 tr:hover td{ background:var(--row-hover); }
+.group-header-row td{ background:var(--th-bg); color:var(--th-text); }
 .form-group input,.form-group select,.form-group textarea,
 .filters input,.filters select,.search-box{
   background:var(--input-bg); border-color:var(--input-border); color:var(--text);
 }
 .form-group label{ color:var(--th-text); }
+.stat-card .label{ color:var(--muted); }
 .btn-outline{ background:var(--card-bg); color:var(--text); border-color:var(--input-border); }
 .modal-title,.login-logo{ color:var(--text); }
 .modal-close{ color:var(--muted); }
 .empty,.loading,.login-sub,.stat-card .sub{ color:var(--muted); }
 #countLabel{ color:var(--muted) !important; }
+
+/* Badges and fee-status text use fixed light-mode colors (light pastel
+   background + dark text) that read fine on a white page but turn muddy
+   and low-contrast once the page background goes dark. Brighten them for
+   dark mode specifically rather than changing the light-mode palette. */
+[data-theme="dark"] .badge-success{ background:#1c3b28; color:#7be3a0; }
+[data-theme="dark"] .badge-danger { background:#3d201d; color:#ff9c8f; }
+[data-theme="dark"] .badge-warning{ background:#3a3312; color:#f0d878; }
+[data-theme="dark"] .badge-info   { background:#1b2e40; color:#8fc4f5; }
+[data-theme="dark"] .fee-paid   { color:#5fd88f; }
+[data-theme="dark"] .fee-unpaid { color:#ff8a7a; }
+[data-theme="dark"] .fee-partial{ color:#f0c060; }
+[data-theme="dark"] .login-error{ color:#ff8a7a; }
 
 /* Theme toggle button */
 .theme-toggle{
@@ -468,9 +499,14 @@ tr:hover td{ background:var(--row-hover); }
 
 /* Catch-all: kill leftover hardcoded light-mode inline colors in dark mode */
 [data-theme="dark"] [style*="color:#888"],
-[data-theme="dark"] [style*="color: #888"]{ color:var(--muted) !important; }
+[data-theme="dark"] [style*="color: #888"],
+[data-theme="dark"] [style*="color:#666"],
+[data-theme="dark"] [style*="color: #666"],
+[data-theme="dark"] [style*="color:#999"],
+[data-theme="dark"] [style*="color: #999"]{ color:var(--muted) !important; }
 [data-theme="dark"] [style*="color:#444"],
-[data-theme="dark"] [style*="color:#555"]{ color:var(--text) !important; }
+[data-theme="dark"] [style*="color:#555"],
+[data-theme="dark"] [style*="color: #555"]{ color:var(--text) !important; }
 [data-theme="dark"] [style*="background:#fff"],
 [data-theme="dark"] [style*="background: #fff"],
 [data-theme="dark"] [style*="background:#eee"]{ background:var(--card-bg) !important; }
@@ -491,6 +527,7 @@ tr:hover td{ background:var(--row-hover); }
   .stats-grid{ grid-template-columns:repeat(2,1fr) !important; gap:10px; }
   .stat-card{ padding:12px 10px; }
   .stat-card .value{ font-size:21px; }
+  .stat-card .value .currency{ font-size:13px; }
   .stat-card .label{ font-size:11px; letter-spacing:0.3px; }
   .stat-card .sub{ font-size:11px; }
   .grid-2, .grid-2-1{ grid-template-columns:1fr !important; }
