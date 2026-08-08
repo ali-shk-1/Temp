@@ -143,7 +143,7 @@ router.get('/', async (req, res, next) => {
   try {
     const { designation_id, search } = req.query;
     let query = `
-      SELECT s.*, d.title AS designation
+      SELECT s.*, d.title AS designation_title
       FROM staff s
       LEFT JOIN designations d ON d.id = s.designation_id
       WHERE 1=1`;
@@ -170,7 +170,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT s.*, d.title AS designation
+      `SELECT s.*, d.title AS designation_title
        FROM staff s
        LEFT JOIN designations d ON d.id = s.designation_id
        WHERE s.staff_id = $1`,

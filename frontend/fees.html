@@ -146,6 +146,12 @@
             <option value="partial">Partial</option>
             <option value="unpaid">Unpaid</option>
           </select>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+            <input type="checkbox" id="feeFilterBoys" onchange="filterMonthly()"/> Boys
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+            <input type="checkbox" id="feeFilterGirls" onchange="filterMonthly()"/> Girls
+          </label>
           <input type="text" placeholder="Search student…" id="feeSearch" oninput="filterMonthly()" class="mini-input" style="width:180px;"/>
         </div>
       </div>
@@ -168,6 +174,12 @@
         <div class="filters">
           <label style="font-size:12px;color:#666;">Date:</label>
           <input type="date" id="dailyDateFilter" onchange="loadDailyRecords()"/>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+            <input type="checkbox" id="dailyFilterBoys" onchange="loadDailyRecords()"/> Boys
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+            <input type="checkbox" id="dailyFilterGirls" onchange="loadDailyRecords()"/> Girls
+          </label>
         </div>
       </div>
       <div class="card">
@@ -187,6 +199,12 @@
         <div class="filters">
           <label style="font-size:12px;color:#666;">Month:</label>
           <input type="month" id="monthlyDefaulterMonthFilter" onchange="loadMonthlyDefaulters()"/>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+            <input type="checkbox" id="defaulterFilterBoys" onchange="filterMonthlyDefaulters()"/> Boys
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+            <input type="checkbox" id="defaulterFilterGirls" onchange="filterMonthlyDefaulters()"/> Girls
+          </label>
           <input type="text" id="monthlyDefaulterSearch" placeholder="Search student…" oninput="filterMonthlyDefaulters()" style="padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;flex:1;min-width:180px;"/>
           <span id="monthlyDefaultersCountLabel" style="font-size:14px;font-weight:600;color:#555;margin-left:auto;"></span>
         </div>
@@ -194,8 +212,8 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>Month</th><th>Roll</th><th>Student</th><th>Class</th><th>Section</th><th>Due</th><th>Paid</th><th>Balance</th><th>Contact</th></tr></thead>
-            <tbody id="monthlyDefaultersBody"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
+            <thead><tr><th>#</th><th>Month</th><th>Roll</th><th>Student</th><th>Class</th><th>Section</th><th>Due</th><th>Paid</th><th>Balance</th><th>Contact</th><th>Action</th></tr></thead>
+            <tbody id="monthlyDefaultersBody"><tr><td colspan="11" class="loading">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -461,6 +479,13 @@
           if (status === 'unpaid')  return paid === 0;
         });
       }
+      // Boys/Girls checkboxes: neither (or both) checked = show both
+      // genders; exactly one checked narrows the list to that gender.
+      const wantBoys  = document.getElementById('feeFilterBoys').checked;
+      const wantGirls = document.getElementById('feeFilterGirls').checked;
+      if (wantBoys !== wantGirls) {
+        list = list.filter(r => (wantBoys && r.gender === 'male') || (wantGirls && r.gender === 'female'));
+      }
       if (!list.length) {
         tbody.innerHTML = '<tr><td colspan="11" class="empty">No records found.</td></tr>'; return;
       }
@@ -485,7 +510,7 @@
           <td><span class="badge ${stCls}">${stLabel}</span></td>
           <td>${r.payment_date ? formatDate(r.payment_date) : '—'}</td>
           <td style="white-space:nowrap;">
-            ${canPay ? `<button class="btn btn-outline btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${due},${paid})">Pay</button>` : ''}
+            ${canPay ? `<button class="btn btn-outline btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${due},${paid},'${r.academic_month}')">Pay</button>` : ''}
             <button class="btn btn-outline btn-sm" title="Print receipt" onclick="printMonthlyReceipt(${i})">🖨</button>
             ${canEditFees() ? `<button class="btn btn-outline btn-sm" title="Edit record" onclick="editFeeRecord(${r.payment_id},'${r.first_name} ${r.last_name}',${due},${paid})">✏️</button>` : ''}
             ${canDeleteFees() ? `<button class="btn btn-outline btn-sm" title="Delete record" onclick="deleteFeeRecord(${r.payment_id})">🗑</button>` : ''}
@@ -502,7 +527,14 @@
       const date = document.getElementById('dailyDateFilter').value;
       try {
         const raw  = await api('GET', `/api/fees/daily?date=${date}`);
-        const data = normalizeList(raw, ['payments', 'data']);
+        let data = normalizeList(raw, ['payments', 'data']);
+        // Boys/Girls checkboxes: neither (or both) checked = show both
+        // genders; exactly one checked narrows the list to that gender.
+        const wantBoys  = document.getElementById('dailyFilterBoys').checked;
+        const wantGirls = document.getElementById('dailyFilterGirls').checked;
+        if (wantBoys !== wantGirls) {
+          data = data.filter(r => (wantBoys && r.gender === 'male') || (wantGirls && r.gender === 'female'));
+        }
         if (!data.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty">No payments on this date.</td></tr>';
           totalEl.textContent = '';
@@ -529,7 +561,7 @@
     async function loadMonthlyDefaulters() {
       const tbody = document.getElementById('monthlyDefaultersBody');
       const countLabel = document.getElementById('monthlyDefaultersCountLabel');
-      tbody.innerHTML = '<tr><td colspan="10" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="loading">Loading…</td></tr>';
       countLabel.textContent = '';
       const month = document.getElementById('monthlyDefaulterMonthFilter').value;
       try {
@@ -539,14 +571,17 @@
         // we can render a per-month subtotal that sums to this total.
         const data = normalizeList(raw, ['defaulters', 'data']);
         currentMonthlyDefaultersList = data;
-        const totalCount = data.length;
-        countLabel.textContent = `${totalCount} defaulter month${totalCount !== 1 ? 's' : ''} total`;
         if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="10" class="empty">No monthly defaulters. 🎉</td></tr>'; return;
+          countLabel.textContent = '0 defaulter months total';
+          tbody.innerHTML = '<tr><td colspan="11" class="empty">No monthly defaulters. 🎉</td></tr>'; return;
         }
-        renderMonthlyDefaultersGrouped(raw.months || groupDefaultersByMonth(data));
+        // Routes through filterMonthlyDefaulters() so the Boys/Girls
+        // checkboxes and search box (if already set) apply immediately
+        // on load/month-change too, not just when the user re-touches
+        // them — and the count label reflects what's actually shown.
+        filterMonthlyDefaulters();
       } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty">Failed to load.</td></tr>';
         countLabel.textContent = '';
       }
     }
@@ -584,18 +619,27 @@
     function renderMonthlyDefaultersGrouped(months) {
       const tbody = document.getElementById('monthlyDefaultersBody');
       if (!months.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty">No monthly defaulters. 🎉</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty">No monthly defaulters. 🎉</td></tr>';
         return;
       }
       let rowCounter = 0;
       tbody.innerHTML = months.map(group => `
         <tr class="group-header-row">
-          <td colspan="10" style="font-weight:600;padding:8px 10px;">
+          <td colspan="11" style="font-weight:600;padding:8px 10px;">
             ${monthLabel(group.academic_month)} — ${group.count} defaulter${group.count !== 1 ? 's' : ''}
           </td>
         </tr>
         ${group.defaulters.map(r => {
           rowCounter += 1;
+          const due  = +r.amount_due  || 0;
+          const paid = +r.amount_paid || 0;
+          // Only offer a Pay button when there's an actual due amount to
+          // collect against. A student with no fee_payments row yet for
+          // this month (amount_due=0/null from the LEFT JOIN) has nothing
+          // billed to settle here — recording a payment against an
+          // unbilled month would need the normal "Record Payment" flow
+          // instead, since there's no due amount to base a receipt on.
+          const canPay = due > 0 && paid < due;
           return `
           <tr>
             <td>${rowCounter}</td>
@@ -607,6 +651,7 @@
             <td class="fee-paid">${formatMoney(r.amount_paid)}</td>
             <td class="fee-unpaid">${formatMoney(r.balance)}</td>
             <td>${r.contact_1 || '—'}</td>
+            <td>${canPay && canAddFees() ? `<button class="btn btn-outline btn-sm" onclick="quickPay(${r.student_id},'${r.first_name} ${r.last_name}',${due},${paid},'${r.academic_month}')">Pay</button>` : '—'}</td>
           </tr>`;
         }).join('')}
       `).join('');
@@ -615,12 +660,21 @@
     function filterMonthlyDefaulters() {
       const q = document.getElementById('monthlyDefaulterSearch').value.toLowerCase().trim();
       const tbody = document.getElementById('monthlyDefaultersBody');
-      const filtered = currentMonthlyDefaultersList.filter(r =>
+      const countLabel = document.getElementById('monthlyDefaultersCountLabel');
+      let filtered = currentMonthlyDefaultersList.filter(r =>
         `${r.first_name} ${r.last_name}`.toLowerCase().includes(q) ||
         String(r.roll_no || '').toLowerCase().includes(q)
       );
+      // Boys/Girls checkboxes: neither (or both) checked = show both
+      // genders; exactly one checked narrows the list to that gender.
+      const wantBoys  = document.getElementById('defaulterFilterBoys').checked;
+      const wantGirls = document.getElementById('defaulterFilterGirls').checked;
+      if (wantBoys !== wantGirls) {
+        filtered = filtered.filter(r => (wantBoys && r.gender === 'male') || (wantGirls && r.gender === 'female'));
+      }
+      countLabel.textContent = `${filtered.length} defaulter month${filtered.length !== 1 ? 's' : ''} total`;
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty">No matching students.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty">No matching students.</td></tr>';
         return;
       }
       renderMonthlyDefaultersGrouped(groupDefaultersByMonth(filtered));
@@ -697,13 +751,30 @@
       document.getElementById('paymentModal').classList.add('open');
     }
 
-    function quickPay(studentId, name, due, paid) {
+    // Settles an existing due/balance for a SPECIFIC fee month (e.g. a
+    // June fee balance being paid off today in August). `academicMonth`
+    // is the row's own fee-period month (r.academic_month, 'YYYY-MM-DD'
+    // or 'YYYY-MM') — NOT today's date — so the resulting payment is
+    // recorded against June, not August. openPayModal() resets payMonth
+    // to the current month by default, so we override it right after.
+    // The actual "which calendar month did the money come in" tracking
+    // still happens automatically via payment_date on the backend
+    // (defaults to NOW()), independent of this — that's what makes the
+    // 1000 balance show as collected in August's "Fee Collected" stat
+    // and Tracking page, while staying billed to June here.
+    function quickPay(studentId, name, due, paid, academicMonth) {
       openPayModal();
       document.getElementById('payStudentSel').value = studentId;
       document.getElementById('payStudentSearch').value = name;
+      if (academicMonth) {
+        document.getElementById('payMonth').value = String(academicMonth).slice(0, 7);
+        document.getElementById('payMonth').disabled = true;
+      }
       document.getElementById('payDue').value  = due;
       document.getElementById('payPaid').value = due - paid;
-      document.getElementById('payModalTitle').textContent = `Record Payment — ${name}`;
+      document.getElementById('payModalTitle').textContent = academicMonth
+        ? `Settle Balance — ${name} (${monthLabel(academicMonth)})`
+        : `Record Payment — ${name}`;
       onStudentChange();
     }
 

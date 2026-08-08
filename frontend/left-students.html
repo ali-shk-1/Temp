@@ -60,6 +60,14 @@
             <label>Section</label>
             <input type="text" id="lsSection"/>
           </div>
+          <div class="form-group">
+            <label>Gender</label>
+            <select id="lsGender">
+              <option value="">Not specified</option>
+              <option value="male">Boy</option>
+              <option value="female">Girl</option>
+            </select>
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -111,16 +119,26 @@
     <div class="page-header">
       <h1 class="page-title">Left Students</h1>
     </div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="filters">
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+          <input type="checkbox" id="filterBoys" onchange="renderTable()"/> Boys
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+          <input type="checkbox" id="filterGirls" onchange="renderTable()"/> Girls
+        </label>
+      </div>
+    </div>
     <div class="card">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>#</th><th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
+              <th>#</th><th>Roll No</th><th>Name</th><th>Class</th><th>Section</th><th>Gender</th>
               <th>Admission</th><th>Left Date</th><th>Reason</th><th>Actions</th>
             </tr>
           </thead>
-          <tbody id="leftStudentsBody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
+          <tbody id="leftStudentsBody"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -144,29 +162,39 @@
 
     async function loadLeftStudents() {
       const tbody = document.getElementById('leftStudentsBody');
-      tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="loading">Loading…</td></tr>';
       try {
         const res = await api('GET', '/api/students/left');
         allLeftStudents = normalizeList(res, ['former_students', 'students', 'data']);
         renderTable();
       } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">Failed to load left students.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">Failed to load left students.</td></tr>';
       }
     }
 
     function renderTable() {
       const tbody = document.getElementById('leftStudentsBody');
-      if (!allLeftStudents.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">No left students found.</td></tr>';
+      // Boys/Girls checkboxes: neither (or both) checked = show everyone;
+      // exactly one checked narrows the list to that gender only —
+      // mirrors the same logic used on students.html.
+      const wantBoys  = document.getElementById('filterBoys').checked;
+      const wantGirls = document.getElementById('filterGirls').checked;
+      const genderNarrowed = wantBoys !== wantGirls;
+      const list = allLeftStudents.filter(s =>
+        !genderNarrowed || (wantBoys && s.gender === 'male') || (wantGirls && s.gender === 'female')
+      );
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">No left students found.</td></tr>';
         return;
       }
-      tbody.innerHTML = allLeftStudents.map((s, i) => `
+      tbody.innerHTML = list.map((s, i) => `
         <tr>
           <td>${i + 1}</td>
           <td>${s.roll_no || '—'}</td>
           <td>${s.first_name} ${s.last_name}</td>
           <td>${s.class || '—'}</td>
           <td>${s.section || '—'}</td>
+          <td>${s.gender === 'male' ? 'Boy' : s.gender === 'female' ? 'Girl' : '—'}</td>
           <td>${formatDate(s.admission_date)}</td>
           <td>${formatDate(s.left_date)}</td>
           <td>${s.left_reason || '—'}</td>
@@ -187,6 +215,7 @@
       document.getElementById('lsRollNo').value = s.roll_no || '';
       document.getElementById('lsClass').value = s.class || '';
       document.getElementById('lsSection').value = s.section || '';
+      document.getElementById('lsGender').value = s.gender || '';
       document.getElementById('lsFatherName').value = s.father_name || '';
       document.getElementById('lsEmail').value = s.email || '';
       document.getElementById('lsContact1').value = s.contact_1 || '';
@@ -210,6 +239,7 @@
         roll_no: document.getElementById('lsRollNo').value || null,
         class: document.getElementById('lsClass').value.trim(),
         section: document.getElementById('lsSection').value.trim(),
+        gender: document.getElementById('lsGender').value || null,
         father_name: document.getElementById('lsFatherName').value.trim(),
         email: document.getElementById('lsEmail').value.trim(),
         contact_1: document.getElementById('lsContact1').value.trim(),

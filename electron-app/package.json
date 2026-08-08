@@ -1,5 +1,4 @@
-﻿$json = @'
-{
+﻿{
   "name": "school-mgmt-desktop",
   "version": "1.0.0",
   "description": "Desktop wrapper for the School Management app",
@@ -36,7 +35,3 @@
     "mac": { "target": "dmg" }
   }
 }
-'@
-
-$utf8NoBom = New-Object System.Text.UTF8Encoding $false
-[System.IO.File]::WriteAllText("$PWD\package.json", $json, $utf8NoBom)

@@ -307,6 +307,7 @@ router.get('/monthly-defaulters', async (req, res, next) => {
                 s.last_name,
                 s.class,
                 s.section,
+                s.gender,
                 s.father_name,
                 s.contact_1,
                 s.contact_2,
@@ -341,6 +342,7 @@ router.get('/monthly-defaulters', async (req, res, next) => {
               sm.last_name,
               sm.class,
               sm.section,
+              sm.gender,
               sm.father_name,
               sm.contact_1,
               sm.contact_2,
@@ -411,12 +413,12 @@ router.get('/tracking/monthly', async (req, res, next) => {
          SUM(fp.amount_due)  AS amount_due,
          SUM(fp.amount_paid) AS amount_paid,
          MAX(fp.payment_date) AS last_payment_date,
-         s.roll_no, s.first_name, s.last_name, s.class, s.section, s.father_name
+         s.roll_no, s.first_name, s.last_name, s.class, s.section, s.gender, s.father_name
        FROM fee_payments fp
        JOIN students s ON s.student_id = fp.student_id
        WHERE DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month)) = DATE_TRUNC('month', $1::DATE)
        GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month), s.roll_no,
-                s.first_name, s.last_name, s.class, s.section, s.father_name
+                s.first_name, s.last_name, s.class, s.section, s.gender, s.father_name
        ORDER BY s.class, s.section, s.roll_no, academic_month`,
       [month]
     );
@@ -584,7 +586,7 @@ router.get('/balance-sheet/yearly', async (req, res, next) => {
 
 router.get('/', async (req, res, next) => {
   try {
-    const { month, class: cls, search } = req.query;
+    const { month, class: cls, search, gender } = req.query;
     let query = `
       SELECT
         MAX(fp.payment_id) AS payment_id,
@@ -594,7 +596,7 @@ router.get('/', async (req, res, next) => {
         SUM(fp.amount_paid) AS amount_paid,
         MAX(fp.payment_date) AS payment_date,
         COUNT(*) AS payment_count,
-        s.roll_no, s.first_name, s.last_name, s.class, s.section, s.photo_url
+        s.roll_no, s.first_name, s.last_name, s.class, s.section, s.photo_url, s.gender
       FROM fee_payments fp
       JOIN students s ON s.student_id = fp.student_id
       WHERE 1=1`;
@@ -609,6 +611,10 @@ router.get('/', async (req, res, next) => {
       query += ` AND s.class = $${idx++}`;
       vals.push(cls);
     }
+    if (gender) {
+      query += ` AND s.gender = $${idx++}`;
+      vals.push(gender);
+    }
     if (search) {
       query += ` AND (
         LOWER(s.first_name) LIKE $${idx} OR
@@ -620,7 +626,7 @@ router.get('/', async (req, res, next) => {
     }
     query += `
       GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month), s.roll_no,
-               s.first_name, s.last_name, s.class, s.section, s.photo_url
+               s.first_name, s.last_name, s.class, s.section, s.photo_url, s.gender
       ORDER BY DATE_TRUNC('month', fp.academic_month) DESC, s.class, s.section, s.roll_no`;
     const { rows } = await pool.query(query, vals);
     res.json({ count: rows.length, payments: rows });
@@ -632,7 +638,7 @@ router.get('/daily', async (req, res, next) => {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const { rows } = await pool.query(
       `SELECT fp.payment_id, fp.student_id, fp.academic_month, fp.amount_due, fp.amount_paid,
-              fp.payment_date, s.first_name, s.last_name, s.class, s.section,
+              fp.payment_date, s.first_name, s.last_name, s.class, s.section, s.gender,
               pr.receipt_no
        FROM fee_payments fp
        JOIN students s ON s.student_id = fp.student_id

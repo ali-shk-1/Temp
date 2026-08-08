@@ -61,6 +61,12 @@
         <label class="text-muted" style="font-size:12px;">Month:</label>
         <input type="month" id="monthPicker" onchange="loadTracking()"/>
         <button class="btn btn-outline btn-sm" onclick="setCurrentMonth()">This Month</button>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+          <input type="checkbox" id="trackFilterBoys" onchange="loadTracking()"/> Boys
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+          <input type="checkbox" id="trackFilterGirls" onchange="loadTracking()"/> Girls
+        </label>
       </div>
       <div class="filters" id="yearPickerRow" style="display:none;">
         <label class="text-muted" style="font-size:12px;">Year:</label>
@@ -166,8 +172,26 @@
       try {
         const data = await api('GET', `/api/fees/tracking/monthly?month=${month}`);
         dbg('tracking monthly', data);
-        const students = data.students || [];
-        const totals = data.totals || { total_paid: 0, total_due: 0, total_balance: 0 };
+        let students = data.students || [];
+
+        // Boys/Girls checkboxes: neither (or both) checked = show both
+        // genders; exactly one checked narrows the list to that gender.
+        // Totals below are recomputed from the filtered list so the
+        // summary cards (Fee Paid/Due/Balance) always match what the
+        // table actually shows, instead of quoting the server's
+        // unfiltered totals alongside a filtered table.
+        const wantBoys  = document.getElementById('trackFilterBoys').checked;
+        const wantGirls = document.getElementById('trackFilterGirls').checked;
+        if (wantBoys !== wantGirls) {
+          students = students.filter(s => (wantBoys && s.gender === 'male') || (wantGirls && s.gender === 'female'));
+        }
+
+        const totals = students.reduce((acc, s) => {
+          acc.total_paid += Number(s.amount_paid) || 0;
+          acc.total_due  += Number(s.amount_due)  || 0;
+          return acc;
+        }, { total_paid: 0, total_due: 0 });
+        totals.total_balance = totals.total_due - totals.total_paid;
 
         document.getElementById('sumPaid').textContent = formatMoney(totals.total_paid);
         document.getElementById('sumDue').textContent = formatMoney(totals.total_due);

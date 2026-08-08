@@ -23,6 +23,20 @@ function getClassRollStart(normalizedClass) {
   return 1;
 }
 
+// Accepts 'male'/'female' case-insensitively, plus common shorthand
+// ('m'/'f', 'boy'/'girl'), and normalizes to the two canonical values the
+// DB CHECK constraint allows. Returns null for empty/unset input (meaning
+// "not specified" — a valid, allowed state) and for anything unrecognized,
+// letting the caller decide whether an unrecognized non-empty value should
+// be rejected outright.
+function normalizeGenderInput(value) {
+  if (value == null || value === '') return null;
+  const raw = String(value).trim().toLowerCase();
+  if (raw === 'male' || raw === 'm' || raw === 'boy') return 'male';
+  if (raw === 'female' || raw === 'f' || raw === 'girl') return 'female';
+  return null;
+}
+
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -66,7 +80,7 @@ router.post('/upload-photo', can('students.add'), upload.single('photo'), async 
 ───────────────────────────────────────── */
 router.get('/', async (req, res, next) => {
   try {
-    const { class: cls, section, search } = req.query;
+    const { class: cls, section, search, gender } = req.query;
 
     let query  = `SELECT * FROM students WHERE 1=1`;
     const vals = [];
@@ -79,6 +93,14 @@ router.get('/', async (req, res, next) => {
     if (section) {
       query += ` AND section = $${idx++}`;
       vals.push(section);
+    }
+    if (gender) {
+      // Unrecognized/unmarked gender rows intentionally stay out of a
+      // narrowed boys/girls filter but still appear when no gender filter
+      // is applied at all (the `if (gender)` guard above skips this
+      // clause entirely in that case).
+      query += ` AND gender = $${idx++}`;
+      vals.push(gender);
     }
     if (search) {
       query += ` AND (
@@ -118,7 +140,7 @@ router.put('/left/:id', can('left-students.edit'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, email, photo_url, address,
-            admission_date, fee_start_month, left_date, left_reason } = req.body;
+            admission_date, fee_start_month, left_date, left_reason, gender } = req.body;
 
     if (!first_name || !last_name) {
       return res.status(400).json({ error: 'first_name and last_name are required.' });
@@ -134,18 +156,23 @@ router.put('/left/:id', can('left-students.edit'), async (req, res, next) => {
     if (fee_start_month && !normalizedFeeStart) {
       return res.status(400).json({ error: 'fee_start_month must be in YYYY-MM format.' });
     }
+    const normalizedGender = normalizeGenderInput(gender);
+    if (gender && !normalizedGender) {
+      return res.status(400).json({ error: 'gender must be "male" or "female" if provided.' });
+    }
 
     const { rows } = await pool.query(
       `UPDATE left_students SET
          roll_no=$1, section=$2, class=$3, first_name=$4, last_name=$5,
          father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
-         admission_date=$12, fee_start_month=$13, left_date=COALESCE($14, left_date), left_reason=$15
-       WHERE left_student_id=$16
+         admission_date=$12, fee_start_month=$13, left_date=COALESCE($14, left_date), left_reason=$15,
+         gender=$16
+       WHERE left_student_id=$17
        RETURNING *`,
       [rollNo, section || null, cls || null, first_name, last_name,
        father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
        admission_date || null, normalizedFeeStart || null, left_date || null, left_reason || null,
-       req.params.id]
+       normalizedGender || null, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Left student record not found.' });
     res.json({ message: 'Left student record updated.', former_student: rows[0] });
@@ -202,12 +229,13 @@ router.post('/:id/leave', can('students.leave'), async (req, res, next) => {
       `INSERT INTO left_students
          (roll_no, section, class, first_name, last_name,
           father_name, contact_1, contact_2, email, photo_url, address,
-          admission_date, fee_start_month, left_date, left_reason)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          admission_date, fee_start_month, left_date, left_reason, gender)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING left_student_id`,
       [student.roll_no, student.section, student.class, student.first_name, student.last_name,
        student.father_name, student.contact_1, student.contact_2, student.email, student.photo_url,
-       student.address, student.admission_date, student.fee_start_month || student.admission_date, new Date().toISOString().slice(0,10), left_reason || null]
+       student.address, student.admission_date, student.fee_start_month || student.admission_date, new Date().toISOString().slice(0,10), left_reason || null,
+       student.gender || null]
     );
     const leftStudentId = leftStudentRows[0].left_student_id;
 
@@ -278,7 +306,7 @@ router.post('/', can('students.add'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, email, photo_url, address,
-            admission_date, fee_start_month } = req.body;
+            admission_date, fee_start_month, gender } = req.body;
 
     if (!section || !cls || !first_name || !last_name) {
       return res.status(400).json({
@@ -302,6 +330,10 @@ router.post('/', can('students.add'), async (req, res, next) => {
     const normalizedFeeStart = normalizeMonthInput(fee_start_month);
     if (fee_start_month && !normalizedFeeStart) {
       return res.status(400).json({ error: 'fee_start_month must be in YYYY-MM format.' });
+    }
+    const normalizedGender = normalizeGenderInput(gender);
+    if (gender && !normalizedGender) {
+      return res.status(400).json({ error: 'gender must be "male" or "female" if provided.' });
     }
 
     // Roll numbers are assigned per-class. Since (class, roll_no) is now
@@ -328,12 +360,12 @@ router.post('/', can('students.add'), async (req, res, next) => {
           `INSERT INTO students
              (roll_no, section, class, first_name, last_name,
               father_name, contact_1, contact_2, email, photo_url, address,
-              admission_date, fee_start_month)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+              admission_date, fee_start_month, gender)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
            RETURNING *`,
           [rollNo, section, normalizedClass, first_name, last_name,
            father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
-           admission_date || new Date().toISOString().slice(0, 10), normalizedFeeStart || null]
+           admission_date || new Date().toISOString().slice(0, 10), normalizedFeeStart || null, normalizedGender || null]
         );
 
         res.status(201).json({ message: 'Student added.', student: rows[0] });
@@ -368,7 +400,7 @@ router.put('/:id', can('students.edit'), async (req, res, next) => {
   try {
     const { roll_no, section, class: cls, first_name, last_name,
             father_name, contact_1, contact_2, email, photo_url, address,
-            admission_date, fee_start_month } = req.body;
+            admission_date, fee_start_month, gender } = req.body;
 
     if (!section || !cls || !first_name || !last_name) {
       return res.status(400).json({
@@ -393,6 +425,10 @@ router.put('/:id', can('students.edit'), async (req, res, next) => {
     if (fee_start_month && !normalizedFeeStart) {
       return res.status(400).json({ error: 'fee_start_month must be in YYYY-MM format.' });
     }
+    const normalizedGender = normalizeGenderInput(gender);
+    if (gender && !normalizedGender) {
+      return res.status(400).json({ error: 'gender must be "male" or "female" if provided.' });
+    }
 
     let rows;
     try {
@@ -401,12 +437,13 @@ router.put('/:id', can('students.edit'), async (req, res, next) => {
            roll_no=COALESCE($1, roll_no), section=$2, class=$3, first_name=$4, last_name=$5,
            father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
            admission_date=COALESCE($12, admission_date),
-           fee_start_month=COALESCE($13, fee_start_month)
-         WHERE student_id=$14
+           fee_start_month=COALESCE($13, fee_start_month),
+           gender=$14
+         WHERE student_id=$15
          RETURNING *`,
         [rollNo, section, normalizedClass, first_name, last_name,
          father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
-         admission_date || null, normalizedFeeStart || null, req.params.id]
+         admission_date || null, normalizedFeeStart || null, normalizedGender || null, req.params.id]
       ));
     } catch (err) {
       if (err.code === '23505' &&

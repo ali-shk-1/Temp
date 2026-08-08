@@ -65,6 +65,14 @@
             <label>Section *</label>
             <input type="text" id="section" placeholder="e.g. A" maxlength="5"/>
           </div>
+          <div class="form-group">
+            <label>Gender</label>
+            <select id="gender">
+              <option value="">Not specified</option>
+              <option value="male">Boy</option>
+              <option value="female">Girl</option>
+            </select>
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -141,6 +149,7 @@
         <div class="profile-details">
           <div><strong id="profileName"></strong></div>
           <div id="profileClass"></div>
+          <div id="profileGender"></div>
           <div id="profileRoll"></div>
           <div id="profileFather"></div>
           <div id="profileContact"></div>
@@ -167,6 +176,12 @@
         <input class="search-box" type="text" id="searchInput" placeholder="Search name, roll no…" oninput="filterTable()"/>
         <input class="search-box" type="text" id="filterClass" placeholder="Filter by class" oninput="filterTable()" style="max-width:220px;"/>
         <input class="search-box" type="text" id="filterSection" placeholder="Filter by section" oninput="filterTable()" style="max-width:160px;"/>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+          <input type="checkbox" id="filterBoys" onchange="filterTable()"/> Boys
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500;white-space:nowrap;">
+          <input type="checkbox" id="filterGirls" onchange="filterTable()"/> Girls
+        </label>
         <span id="countLabel" style="font-size:14px;font-weight:600;color:#555;margin-left:auto;"></span>
       </div>
     </div>
@@ -176,12 +191,12 @@
         <table>
           <thead>
             <tr>
-              <th>#</th><th>Roll No</th><th>Name</th><th>Class</th><th>Section</th>
+              <th>#</th><th>Roll No</th><th>Name</th><th>Class</th><th>Section</th><th>Gender</th>
               <th>Father</th><th>Contact</th><th>Email</th><th>Admitted</th><th>Actions</th>
             </tr>
           </thead>
           <tbody id="studentTableBody">
-            <tr><td colspan="10" class="loading">Loading…</td></tr>
+            <tr><td colspan="11" class="loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -211,7 +226,7 @@
         allStudents = normalizeList(res, ['students', 'data']);
         renderTable(allStudents);
       } catch(e) {
-        tbody.innerHTML = `<tr><td colspan="10" class="empty">Failed to load students.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="empty">Failed to load students.</td></tr>`;
       }
     }
 
@@ -219,7 +234,7 @@
       const tbody = document.getElementById('studentTableBody');
       document.getElementById('countLabel').textContent = `${list.length} student${list.length !== 1 ? 's' : ''}`;
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty">No students found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty">No students found.</td></tr>';
         return;
       }
       tbody.innerHTML = list.map((s, i) => `
@@ -229,6 +244,7 @@
           <td><strong>${s.first_name} ${s.last_name}</strong></td>
           <td>${s.class}</td>
           <td>${s.section}</td>
+          <td>${s.gender === 'male' ? 'Boy' : s.gender === 'female' ? 'Girl' : '—'}</td>
           <td>${s.father_name || '—'}</td>
           <td>${s.contact_1 || '—'}</td>
           <td>${s.email || '—'}</td>
@@ -246,11 +262,19 @@
       const q     = document.getElementById('searchInput').value.toLowerCase();
       const cls   = document.getElementById('filterClass').value;
       const sect  = document.getElementById('filterSection').value;
+      // Boys/Girls checkboxes: neither checked = show both (no gender
+      // filtering at all). Both checked also means show both, same as
+      // neither — it's only a *narrowing* filter when exactly one is
+      // checked, never a way to hide everyone.
+      const wantBoys  = document.getElementById('filterBoys').checked;
+      const wantGirls = document.getElementById('filterGirls').checked;
+      const genderNarrowed = wantBoys !== wantGirls; // true only if exactly one is checked
       const list  = allStudents.filter(s => {
         const name = `${s.first_name} ${s.last_name} ${s.roll_no}`.toLowerCase();
         return (!q || name.includes(q))
           && (!cls  || s.class   === cls)
-          && (!sect || s.section === sect);
+          && (!sect || s.section === sect)
+          && (!genderNarrowed || (wantBoys && s.gender === 'male') || (wantGirls && s.gender === 'female'));
       });
       renderTable(list);
     }
@@ -262,6 +286,7 @@
       document.getElementById('rollNo').value       = student ? student.roll_no     : '';
       document.getElementById('classField').value   = student ? student.class       : '';
       document.getElementById('section').value      = student ? student.section     : '';
+      document.getElementById('gender').value       = student ? (student.gender || '') : '';
       document.getElementById('fatherName').value   = student ? (student.father_name || '') : '';
       document.getElementById('admissionDate').value = student
         ? (student.admission_date ? student.admission_date.slice(0,10) : '')
@@ -297,6 +322,7 @@
       }
       document.getElementById('profileName').textContent = `${s.first_name} ${s.last_name}`;
       document.getElementById('profileClass').textContent = `Class / Section: ${s.class || '—'} ${s.section || ''}`;
+      document.getElementById('profileGender').textContent = `Gender: ${s.gender === 'male' ? 'Boy' : s.gender === 'female' ? 'Girl' : '—'}`;
       document.getElementById('profileRoll').textContent = `Roll No: ${s.roll_no || '—'}`;
       document.getElementById('profileFather').textContent = `Father: ${s.father_name || '—'}`;
       document.getElementById('profileContact').textContent = `Contact: ${s.contact_1 || '—'}`;
@@ -348,6 +374,7 @@
         roll_no:     document.getElementById('rollNo').value ? parseInt(document.getElementById('rollNo').value, 10) : null,
         class:       document.getElementById('classField').value.trim(),
         section:     document.getElementById('section').value.trim().toUpperCase(),
+        gender:      document.getElementById('gender').value || null,
         father_name: document.getElementById('fatherName').value.trim(),
         admission_date: document.getElementById('admissionDate').value || null,
         fee_start_month: document.getElementById('feeStartMonth').value ? `${document.getElementById('feeStartMonth').value}-01` : null,
