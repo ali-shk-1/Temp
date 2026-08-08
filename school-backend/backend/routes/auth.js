@@ -3,6 +3,7 @@ const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const pool    = require('../db');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
+const { isAli } = require('../permissions');
 
 /* ─────────────────────────────────────────
    POST /api/auth/login
@@ -122,7 +123,11 @@ router.post('/change-password', authenticate, async (req, res, next) => {
    POST /api/auth/register  — admin only
    Body: { username, password, role_id, staff_id? }
 ───────────────────────────────────────── */
-router.post('/register', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/register', authenticate, (req, res, next) => {
+  const role = req.user && req.user.role ? String(req.user.role).toLowerCase() : null;
+  if (role === 'admin' || isAli(role)) return next();
+  return res.status(403).json({ error: 'Access denied. Required role(s): admin.' });
+}, async (req, res, next) => {
   try {
     const { username, password, role_id, staff_id } = req.body;
 
@@ -167,7 +172,11 @@ router.post('/register', authenticate, authorize('admin'), async (req, res, next
    PATCH /api/auth/users/:id/toggle  — admin only
    Enable / disable a user account
 ───────────────────────────────────────── */
-router.patch('/users/:id/toggle', authenticate, authorize('admin'), async (req, res, next) => {
+router.patch('/users/:id/toggle', authenticate, (req, res, next) => {
+  const role = req.user && req.user.role ? String(req.user.role).toLowerCase() : null;
+  if (role === 'admin' || isAli(role)) return next();
+  return res.status(403).json({ error: 'Access denied. Required role(s): admin.' });
+}, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE users SET is_active = NOT is_active

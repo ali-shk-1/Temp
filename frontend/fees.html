@@ -368,6 +368,14 @@
         'students.changed': () => loadStudents(),
         'permissions.changed': () => refreshMyPermissions(),
       });
+
+      // If we were navigated here to record a payment directly
+      // (e.g. from the dashboard's "Record Fee" button), skip the
+      // tab and jump straight to the payment form.
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('action') === 'record-payment' && canAddFees()) {
+        openPayModal();
+      }
     }
 
     async function loadStudents() {
