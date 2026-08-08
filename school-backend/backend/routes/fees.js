@@ -3,8 +3,25 @@ const pool   = require('../db');
 const { authenticate, authorize, can } = require('../middleware/authMiddleware');
 const { sendMail } = require('../utils/mailer');
 const { broadcast } = require('../sse');
+const { isAli, defaultsForRole } = require('../permissions');
 
 router.use(authenticate);
+
+// Mirrors the DB-backed check inside can(), but as a plain boolean lookup
+// instead of route middleware — used where we need to know whether the
+// custom-date feature is allowed for this user, without blocking the
+// whole request the way can() would (a payment can still be recorded
+// without a custom date even if the user isn't allowed to pick one).
+async function userHasPermission(role, permissionKey) {
+  const normalizedRole = String(role || '').toLowerCase();
+  if (isAli(normalizedRole)) return true;
+  const { rows } = await pool.query(
+    'SELECT allowed FROM role_permissions WHERE role_name = $1 AND permission_key = $2',
+    [normalizedRole, permissionKey]
+  );
+  if (rows.length > 0) return !!rows[0].allowed;
+  return !!defaultsForRole(normalizedRole)[permissionKey];
+}
 
 function normalizeMonthInput(value) {
   if (!value) return null;
@@ -22,9 +39,32 @@ function normalizeMonthInput(value) {
 router.post('/', can('fees.add'), async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const { student_id, academic_month, amount_due, amount_paid } = req.body;
+    const { student_id, academic_month, amount_due, amount_paid, payment_date } = req.body;
     if (!student_id || !academic_month || amount_due == null) {
       return res.status(400).json({ error: 'student_id, academic_month, and amount_due are required.' });
+    }
+
+    // Optional "deposit on a different day" override — e.g. fee actually
+    // came in yesterday but wasn't recorded until today. Backdating (or
+    // postdating) a deposit changes which day's collection totals,
+    // Tracking, and receipt date this payment shows up under (everything
+    // downstream already keys off payment_date, see comments below and
+    // throughout this file), so it's gated by its own permission rather
+    // than folded into plain 'fees.add'. Only validate/apply it if the
+    // caller actually sent one — omitting it keeps the exact previous
+    // behavior (payment_date defaults to NOW() at the DB level).
+    let customPaymentDate = null;
+    if (payment_date != null && payment_date !== '') {
+      const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(String(payment_date).trim()) &&
+        !isNaN(new Date(payment_date).getTime());
+      if (!isValidDate) {
+        return res.status(400).json({ error: 'payment_date must be in YYYY-MM-DD format.' });
+      }
+      const allowed = await userHasPermission(req.user && req.user.role, 'fees.custom_date');
+      if (!allowed) {
+        return res.status(403).json({ error: "Access denied. You don't have permission to set a custom deposit date (fees.custom_date)." });
+      }
+      customPaymentDate = String(payment_date).trim();
     }
 
     await client.query('BEGIN');
@@ -64,12 +104,19 @@ router.post('/', can('fees.add'), async (req, res, next) => {
     const insertedDue = existingMonth.rows.length ? 0 : amount_due;
     const insertedPaid = amount_paid || 0;
 
-    const { rows } = await client.query(
-      `INSERT INTO fee_payments (student_id, academic_month, amount_due, amount_paid)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [student_id, academic_month, insertedDue, insertedPaid]
-    );
+    const { rows } = customPaymentDate
+      ? await client.query(
+          `INSERT INTO fee_payments (student_id, academic_month, amount_due, amount_paid, payment_date)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [student_id, academic_month, insertedDue, insertedPaid, customPaymentDate]
+        )
+      : await client.query(
+          `INSERT INTO fee_payments (student_id, academic_month, amount_due, amount_paid)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [student_id, academic_month, insertedDue, insertedPaid]
+        );
 
     // Re-fetch joined with student info so the client has everything it
     // needs to render/print a receipt without a second round-trip.
@@ -114,19 +161,39 @@ router.post('/', can('fees.add'), async (req, res, next) => {
     let receiptNo = null;
     if (paymentRow) {
       const studentName = `${paymentRow.first_name || ''} ${paymentRow.last_name || ''}`.trim();
-      const receiptInsert = await client.query(
-        `INSERT INTO payment_receipts
-           (payment_id, student_id, roll_no, student_name, class, section, academic_month, amount_due, amount_paid, print_mode, issued_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-         RETURNING receipt_no`,
-        [
-          rows[0].payment_id, student_id, paymentRow.roll_no, studentName,
-          paymentRow.class, paymentRow.section, academic_month,
-          paymentRow.amount_due, paymentRow.amount_paid,
-          (req.body.print_mode === 'thermal' ? 'thermal' : 'paper'),
-          req.user && req.user.username ? req.user.username : null
-        ]
-      );
+      // issued_at mirrors the payment's own payment_date (custom-dated or
+      // NOW()) so the Receipts page — which filters/sorts by
+      // DATE(pr.issued_at) — lists this receipt under the same deposit
+      // day the payment itself is now recorded against, instead of
+      // "today" regardless of a backdated deposit.
+      const receiptInsert = customPaymentDate
+        ? await client.query(
+            `INSERT INTO payment_receipts
+               (payment_id, student_id, roll_no, student_name, class, section, academic_month, amount_due, amount_paid, print_mode, issued_by, issued_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             RETURNING receipt_no`,
+            [
+              rows[0].payment_id, student_id, paymentRow.roll_no, studentName,
+              paymentRow.class, paymentRow.section, academic_month,
+              paymentRow.amount_due, paymentRow.this_payment_amount,
+              (req.body.print_mode === 'thermal' ? 'thermal' : 'paper'),
+              req.user && req.user.username ? req.user.username : null,
+              customPaymentDate
+            ]
+          )
+        : await client.query(
+            `INSERT INTO payment_receipts
+               (payment_id, student_id, roll_no, student_name, class, section, academic_month, amount_due, amount_paid, print_mode, issued_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             RETURNING receipt_no`,
+            [
+              rows[0].payment_id, student_id, paymentRow.roll_no, studentName,
+              paymentRow.class, paymentRow.section, academic_month,
+              paymentRow.amount_due, paymentRow.this_payment_amount,
+              (req.body.print_mode === 'thermal' ? 'thermal' : 'paper'),
+              req.user && req.user.username ? req.user.username : null
+            ]
+          );
       receiptNo = receiptInsert.rows[0] ? receiptInsert.rows[0].receipt_no : null;
     }
 

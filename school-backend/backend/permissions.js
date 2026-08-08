@@ -62,9 +62,10 @@ const PERMISSION_GROUPS = [
     key: 'fees',
     label: 'Fees',
     permissions: [
-      { key: 'fees.add',    label: 'Record fee payment' },
-      { key: 'fees.edit',   label: 'Edit fee payment' },
-      { key: 'fees.delete', label: 'Delete fee payment' },
+      { key: 'fees.add',         label: 'Record fee payment' },
+      { key: 'fees.edit',        label: 'Edit fee payment' },
+      { key: 'fees.delete',      label: 'Delete fee payment' },
+      { key: 'fees.custom_date', label: 'Deposit fee on a custom (backdated) date' },
     ],
   },
   {
@@ -129,7 +130,7 @@ const PAGE_KEYS = [
 
 // Roles whose permissions are toggle-able via the Permissions page.
 // 'ali' is intentionally excluded — ali always has everything.
-const MANAGEABLE_ROLES = ['admin', 'principal', 'viewer'];
+const MANAGEABLE_ROLES = ['admin', 'principal', 'vice_principal', 'accountant', 'viewer'];
 
 /**
  * Hardcoded defaults — mirrors exactly what each role could already do via
@@ -154,6 +155,7 @@ const DEFAULT_PERMISSIONS = {
     'fees.add': true,
     'fees.edit': true,
     'fees.delete': true,
+    'fees.custom_date': false,  // backdating fee deposits is ali-only by default; toggle to extend to admin
     'receipts.add': true,
     'receipts.edit': true,
     'receipts.delete': false,   // deleting a receipt removes an audit record — admin-restricted by default
@@ -185,6 +187,7 @@ const DEFAULT_PERMISSIONS = {
     'fees.add': true,
     'fees.edit': true,
     'fees.delete': true,
+    'fees.custom_date': false,  // backdating fee deposits is ali-only by default; toggle to extend to principal
     'receipts.add': true,
     'receipts.edit': false,
     'receipts.delete': false,
@@ -195,6 +198,79 @@ const DEFAULT_PERMISSIONS = {
     'tracking.add': true,
     'tracking.edit': true,
     'tracking.delete': false,
+    'balance-sheet.add': false,
+    'balance-sheet.edit': false,
+    'balance-sheet.delete': false,
+  },
+  vice_principal: {
+    // Mirrors 'principal' defaults on creation — a reasonable starting
+    // point for a second senior-staff account. Every value here is
+    // individually toggleable by ali from the Permissions page, same as
+    // every other manageable role.
+    'students.add': true,
+    'students.edit': true,
+    'students.delete': true,
+    'students.leave': true,
+    'left-students.edit': true,
+    'left-students.delete': true,
+    'staff.add': false,
+    'staff.edit': false,
+    'staff.delete': false,
+    'staff.leave': false,
+    'staff.designations': false,
+    'left-staff.edit': false,
+    'left-staff.delete': false,
+    'fees.add': true,
+    'fees.edit': true,
+    'fees.delete': true,
+    'fees.custom_date': false,  // backdating fee deposits is ali-only by default; toggle to extend to vice principal
+    'receipts.add': true,
+    'receipts.edit': false,
+    'receipts.delete': false,
+    'expenses.add': false,
+    'expenses.edit': false,
+    'expenses.delete': false,
+    'expenses.categories': false,
+    'tracking.add': true,
+    'tracking.edit': true,
+    'tracking.delete': false,
+    'balance-sheet.add': false,
+    'balance-sheet.edit': false,
+    'balance-sheet.delete': false,
+  },
+  accountant: {
+    // Finance-focused role: full rights over money-related pages (fees,
+    // receipts, expenses, tracking, total/balance-sheet), but no access
+    // to add/edit/delete on students or staff records by default — those
+    // stay with academic/admin roles. Every value here is individually
+    // toggleable by ali from the Permissions page.
+    'students.add': false,
+    'students.edit': false,
+    'students.delete': false,
+    'students.leave': false,
+    'left-students.edit': false,
+    'left-students.delete': false,
+    'staff.add': false,
+    'staff.edit': false,
+    'staff.delete': false,
+    'staff.leave': false,
+    'staff.designations': false,
+    'left-staff.edit': false,
+    'left-staff.delete': false,
+    'fees.add': true,
+    'fees.edit': true,
+    'fees.delete': true,
+    'fees.custom_date': false,  // backdating fee deposits is ali-only by default; toggle to extend to accountant
+    'receipts.add': true,
+    'receipts.edit': true,
+    'receipts.delete': false,
+    'expenses.add': true,
+    'expenses.edit': true,
+    'expenses.delete': true,
+    'expenses.categories': true,
+    'tracking.add': true,
+    'tracking.edit': true,
+    'tracking.delete': true,
     'balance-sheet.add': false,
     'balance-sheet.edit': false,
     'balance-sheet.delete': false,
@@ -218,6 +294,7 @@ const DEFAULT_PERMISSIONS = {
     'fees.add': false,
     'fees.edit': false,
     'fees.delete': false,
+    'fees.custom_date': false,
     'receipts.add': false,
     'receipts.edit': false,
     'receipts.delete': false,

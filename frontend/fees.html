@@ -63,6 +63,17 @@
             <input type="number" id="payPaid" step="0.01" placeholder="0"/>
           </div>
         </div>
+        <div class="form-group" id="payCustomDateGroup" style="display:none;">
+          <label>
+            <input type="checkbox" id="payUseCustomDate" onchange="onUseCustomDateToggle()"/>
+            Deposit on a different day (e.g. fee came in yesterday)
+          </label>
+          <input type="date" id="payCustomDate" style="margin-top:6px;display:none;"/>
+          <div class="text-muted" style="font-size:12px;margin-top:4px;">
+            This payment (and its receipt) will appear under the collection totals
+            for the date you pick instead of today.
+          </div>
+        </div>
         <div class="text-muted" style="font-size:12px;margin-bottom:10px;">
           For free students, enter 0 for both Amount Due and Amount Paid.
         </div>
@@ -318,6 +329,7 @@
     function canDeleteFees() { return hasPerm('fees.delete'); }
     function canEditFees() { return hasPerm('fees.edit'); }
     function canAddFees() { return hasPerm('fees.add'); }
+    function canCustomDateFees() { return hasPerm('fees.custom_date'); }
 
     // Set when the payment modal is open in "edit existing record" mode
     // (as opposed to "record a new payment"). Editing only touches
@@ -335,6 +347,8 @@
 
     function applyPermissionUI() {
       document.getElementById('recordPaymentBtn').style.display = canAddFees() ? '' : 'none';
+      const customDateGroup = document.getElementById('payCustomDateGroup');
+      if (customDateGroup) customDateGroup.style.display = canCustomDateFees() ? '' : 'none';
     }
 
     async function init() {
@@ -748,7 +762,24 @@
       document.getElementById('existingPayInfo').style.display = 'none';
       document.getElementById('payModalTitle').textContent = 'Record Fee Payment';
       document.querySelector('#paymentModal .btn-success').textContent = 'Record Payment';
+      const customDateGroup = document.getElementById('payCustomDateGroup');
+      if (customDateGroup) customDateGroup.style.display = canCustomDateFees() ? '' : 'none';
+      document.getElementById('payUseCustomDate').checked = false;
+      document.getElementById('payCustomDate').value = todayStr;
+      document.getElementById('payCustomDate').style.display = 'none';
       document.getElementById('paymentModal').classList.add('open');
+    }
+
+    // Shows/hides the actual date picker under the "deposit on a
+    // different day" checkbox. Left unchecked (and hidden), savePayment()
+    // sends no payment_date at all, which preserves the exact previous
+    // behavior — the backend defaults it to NOW().
+    function onUseCustomDateToggle() {
+      const checked = document.getElementById('payUseCustomDate').checked;
+      document.getElementById('payCustomDate').style.display = checked ? '' : 'none';
+      if (checked && !document.getElementById('payCustomDate').value) {
+        document.getElementById('payCustomDate').value = todayStr;
+      }
     }
 
     // Settles an existing due/balance for a SPECIFIC fee month (e.g. a
@@ -794,6 +825,12 @@
       document.getElementById('payPaid').value = paid;
       document.getElementById('payModalTitle').textContent = `Edit Payment — ${name}`;
       document.querySelector('#paymentModal .btn-success').textContent = 'Save Changes';
+      // Editing an existing record never touches payment_date (see PUT
+      // /api/fees/:payment_id) — hide the custom-date control entirely
+      // here regardless of permission, so it isn't shown for a field it
+      // won't actually affect.
+      const customDateGroup = document.getElementById('payCustomDateGroup');
+      if (customDateGroup) customDateGroup.style.display = 'none';
     }
 
     // Searchable student picker for the Record Payment modal —
@@ -907,14 +944,27 @@
       if (!month)     { showToast('Select a month.', 'error');   return; }
       if (paid < 0)   { showToast('Amount paid cannot be negative.', 'error'); return; }
       if (due > 0 && paid <= 0) { showToast('Enter a payment amount for a due fee.', 'error'); return; }
+
+      // Optional "deposit on a different day" override — only sent when
+      // the user both has permission AND ticked the checkbox. Omitting
+      // the field entirely (rather than sending today's date) preserves
+      // exact prior behavior for everyone who doesn't use this feature:
+      // the backend defaults payment_date to NOW().
+      const useCustomDate = canCustomDateFees() && document.getElementById('payUseCustomDate').checked;
+      const customDate = useCustomDate ? document.getElementById('payCustomDate').value : '';
+      if (useCustomDate && !customDate) { showToast('Pick a deposit date, or uncheck the custom date option.', 'error'); return; }
+
       try {
-        const res = await api('POST', '/api/fees', {
+        const body = {
           student_id:     parseInt(studentId),
           academic_month: month + '-01',
           amount_due:     due,
           amount_paid:    paid,
           print_mode:     getPrintMode()
-        });
+        };
+        if (useCustomDate) body.payment_date = customDate;
+
+        const res = await api('POST', '/api/fees', body);
         showToast('Payment recorded!', 'success');
         closePayModal();
         loadMonthlyRecords();
@@ -955,8 +1005,20 @@
       const contact_1   = r.contact_1   || s?.contact_1;
       const photo_url   = r.photo_url   || s?.photo_url || '';
 
-      const due  = +r.amount_due  || 0;
-      const paid = +r.amount_paid || 0;
+      const due = +r.amount_due || 0;
+      // r.amount_paid is the MONTH'S CUMULATIVE total (SUM across every
+      // payment for this student+month) when this comes fresh off
+      // POST /api/fees — that field also drives the correct Balance math
+      // (due - cumulative). But the receipt's own "Amount Paid" line must
+      // show only THIS transaction's amount, or a second/settling payment
+      // in the same month prints the running total instead of what was
+      // actually handed over just now (this was the #18/#19 bug).
+      // this_payment_amount only exists on that fresh POST response; any
+      // other source (payment_receipts reprint, per-row history) already
+      // stores/returns a per-transaction amount_paid, so falling back to
+      // r.amount_paid there is correct, not a regression.
+      const cumulativePaid = +r.amount_paid || 0;
+      const thisPayment = r.this_payment_amount != null ? +r.this_payment_amount : cumulativePaid;
       return {
         receipt_no:     r.receipt_no || r.payment_id || '—',
         roll_no:        roll_no ?? '—',
@@ -967,8 +1029,8 @@
         photo_url:      photo_url || '',
         academic_month: monthLabel(r.academic_month),
         amount_due:  due,
-        amount_paid: paid,
-        balance:     due - paid,
+        amount_paid: thisPayment,
+        balance:     due - cumulativePaid,
         payment_date: r.payment_date ? new Date(r.payment_date) : new Date()
       };
     }

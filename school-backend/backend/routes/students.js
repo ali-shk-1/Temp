@@ -336,11 +336,16 @@ router.post('/', can('students.add'), async (req, res, next) => {
       return res.status(400).json({ error: 'gender must be "male" or "female" if provided.' });
     }
 
-    // Roll numbers are assigned per-class. Since (class, roll_no) is now
-    // enforced unique at the DB level, two concurrent inserts into the same
-    // class can no longer silently collide — instead one of them will hit a
-    // unique-violation (Postgres error code 23505), which we catch and
-    // retry with a freshly recomputed roll number.
+    // Roll numbers are assigned per class+section+gender, independently.
+    // E.g. Class 1-A boys, 1-A girls, 1-B boys, 1-B girls each get their
+    // own 1, 2, 3... sequence rather than sharing one counter across the
+    // whole class. Students with no gender set share one "unspecified"
+    // sequence per class+section (see migration 014 for why). Since
+    // (class, section, gender, roll_no) is enforced unique at the DB
+    // level, two concurrent inserts into the same scope can no longer
+    // silently collide — instead one of them will hit a unique-violation
+    // (Postgres error code 23505), which we catch and retry with a
+    // freshly recomputed roll number.
     const MAX_ATTEMPTS = 5;
     let lastErr;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -348,8 +353,9 @@ router.post('/', can('students.add'), async (req, res, next) => {
       if (rollNo == null) {
         const classStart = getClassRollStart(normalizedClass);
         const { rows: maxRow } = await pool.query(
-          'SELECT MAX(roll_no) AS max_roll FROM students WHERE class = $1',
-          [normalizedClass]
+          `SELECT MAX(roll_no) AS max_roll FROM students
+           WHERE class = $1 AND section = $2 AND COALESCE(gender, 'unspecified') = COALESCE($3, 'unspecified')`,
+          [normalizedClass, section, normalizedGender]
         );
         const maxRoll = maxRow[0]?.max_roll;
         rollNo = (maxRoll != null && maxRoll >= classStart) ? maxRoll + 1 : classStart;
@@ -373,7 +379,9 @@ router.post('/', can('students.add'), async (req, res, next) => {
         return;
       } catch (err) {
         const isRollNoCollision = err.code === '23505' &&
-          (err.constraint === 'students_class_roll_no_unique' || /roll_no/i.test(err.detail || ''));
+          (err.constraint === 'students_class_section_gender_roll_no_unique' ||
+           err.constraint === 'students_class_roll_no_unique' ||
+           /roll_no/i.test(err.detail || ''));
         // Only auto-retry when we picked the roll number ourselves; if the
         // caller supplied an explicit roll_no, a collision is a real
         // conflict that should be reported, not silently reassigned.
@@ -382,7 +390,7 @@ router.post('/', can('students.add'), async (req, res, next) => {
           continue;
         }
         if (isRollNoCollision && explicitRollNo != null) {
-          return res.status(409).json({ error: 'That Roll No is already in use for this class.' });
+          return res.status(409).json({ error: 'That Roll No is already in use for this class, section, and gender.' });
         }
         throw err;
       }
@@ -447,8 +455,10 @@ router.put('/:id', can('students.edit'), async (req, res, next) => {
       ));
     } catch (err) {
       if (err.code === '23505' &&
-          (err.constraint === 'students_class_roll_no_unique' || /roll_no/i.test(err.detail || ''))) {
-        return res.status(409).json({ error: 'That Roll No is already in use for this class.' });
+          (err.constraint === 'students_class_section_gender_roll_no_unique' ||
+           err.constraint === 'students_class_roll_no_unique' ||
+           /roll_no/i.test(err.detail || ''))) {
+        return res.status(409).json({ error: 'That Roll No is already in use for this class, section, and gender.' });
       }
       throw err;
     }

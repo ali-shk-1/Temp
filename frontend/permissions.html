@@ -30,7 +30,7 @@
 <body>
   <div id="toast" class="toast"></div>
 
-  <!-- Change Password Modal -->
+  <!-- Change Password Modal (for admin/principal/vice_principal/accountant/viewer accounts) -->
   <div class="modal-overlay" id="pwModal">
     <div class="modal" style="max-width:380px;">
       <div class="modal-header">
@@ -50,6 +50,38 @@
         <div class="modal-footer">
           <button class="btn btn-outline" onclick="closePwModal()">Cancel</button>
           <button class="btn btn-primary" onclick="savePassword()">Update Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Change My (ali's own) Password Modal — uses /api/auth/change-password,
+       which requires the current password, unlike the admin-reset flow
+       above (which resets OTHER accounts' passwords without knowing the
+       old one). Kept as a separate modal/flow since the two endpoints
+       have different request shapes and semantics. -->
+  <div class="modal-overlay" id="myPwModal">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Change My Password</h2>
+        <button class="modal-close" onclick="closeMyPwModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <div class="form-group">
+          <label>Current Password *</label>
+          <input type="password" id="myPwCurrent" placeholder="Your current password" autocomplete="current-password"/>
+        </div>
+        <div class="form-group">
+          <label>New Password *</label>
+          <input type="password" id="myPwNew" placeholder="At least 6 characters" autocomplete="new-password"/>
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password *</label>
+          <input type="password" id="myPwConfirm" placeholder="Re-enter password" autocomplete="new-password"/>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeMyPwModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveMyPassword()">Update Password</button>
         </div>
       </form>
     </div>
@@ -83,6 +115,16 @@
     </div>
 
     <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:600;margin-bottom:2px;">My Account</div>
+          <div style="font-size:12px;color:var(--muted);">Change the password for your own "ali" login.</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openMyPwModal()">Change My Password</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
       <p style="font-size:13px;color:var(--muted);line-height:1.6;">
         Toggle exactly what each account is allowed to do. Turning something off
         hides that button/action for every user with that role, immediately —
@@ -111,7 +153,7 @@
       window.location.href = 'dashboard.html';
     }
 
-    const ROLE_LABELS = { admin: 'Admin', principal: 'Principal', viewer: 'Viewer' };
+    const ROLE_LABELS = { admin: 'Admin', principal: 'Principal', vice_principal: 'Vice Principal', accountant: 'Accountant', viewer: 'Viewer' };
     let permData = null; // last response from GET /api/permissions
 
     async function loadPermissions() {
@@ -249,6 +291,49 @@
 
     function closePwModal() {
       document.getElementById('pwModal').classList.remove('open');
+    }
+
+    function openMyPwModal() {
+      document.getElementById('myPwCurrent').value = '';
+      document.getElementById('myPwNew').value = '';
+      document.getElementById('myPwConfirm').value = '';
+      document.getElementById('myPwModal').classList.add('open');
+    }
+
+    function closeMyPwModal() {
+      document.getElementById('myPwModal').classList.remove('open');
+    }
+
+    // ali's self-service password change. Goes through
+    // POST /api/auth/change-password (works for any authenticated user)
+    // rather than the admin-reset endpoint above, since that one is
+    // scoped to admin/principal/vice_principal/accountant/viewer accounts
+    // only and requires no current-password check — appropriate for ali
+    // resetting someone else's forgotten password, not for ali changing
+    // their own.
+    async function saveMyPassword() {
+      const current = document.getElementById('myPwCurrent').value;
+      const pw1 = document.getElementById('myPwNew').value;
+      const pw2 = document.getElementById('myPwConfirm').value;
+
+      if (!current) { showToast('Enter your current password.', 'error'); return; }
+      if (!pw1 || pw1.length < 6) {
+        showToast('New password must be at least 6 characters.', 'error'); return;
+      }
+      if (pw1 !== pw2) {
+        showToast('Passwords do not match.', 'error'); return;
+      }
+
+      try {
+        await api('POST', '/api/auth/change-password', {
+          current_password: current,
+          new_password: pw1
+        });
+        showToast('Your password has been updated.');
+        closeMyPwModal();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
     }
 
     function openRenameModal(userId, username) {
