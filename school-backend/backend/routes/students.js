@@ -42,11 +42,69 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Turns a raw form field into a safe folder-name segment: lowercased,
+// trimmed, and stripped of anything that isn't a letter/digit/dash/
+// underscore, so a stray '/', '..', or odd character in class/section
+// can't escape the uploads directory or create unexpected nested paths.
+// Returns null if nothing usable is left, which callers treat as
+// "field missing" and fall back to the flat uploads/ folder.
+function safeSegment(value) {
+  if (value == null) return null;
+  const cleaned = String(value).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return cleaned || null;
+}
+
+// Photos are organized as uploads/<gender>/<class>/<section>/<roll_no>.ext
+// so browsing the filesystem mirrors how students are organized in the
+// app. gender folder is 'm' or 'f'; anything else (not set, or an
+// unrecognized value) falls back to 'unspecified' rather than failing
+// the upload — a missing/unset gender shouldn't block adding a photo.
+//
+// If class/section/roll_no aren't present at all (e.g. a future caller
+// of this endpoint that doesn't send them), we fall back to the original
+// flat uploads/ folder instead of throwing, so this endpoint can never
+// be broken by an unexpected caller.
+function resolveUploadDir(req) {
+  const cls     = safeSegment(req.body && req.body.class);
+  const section = safeSegment(req.body && req.body.section);
+  const rollNo  = safeSegment(req.body && req.body.roll_no);
+  if (!cls || !section || !rollNo) return uploadsDir;
+
+  const genderRaw = safeSegment(req.body && req.body.gender);
+  const genderFolder = genderRaw === 'male' || genderRaw === 'm' ? 'm'
+    : genderRaw === 'female' || genderRaw === 'f' ? 'f'
+    : 'unspecified';
+
+  return path.join(uploadsDir, genderFolder, cls, section);
+}
+
 const storage = multer.diskStorage({
-  destination: uploadsDir,
+  destination: (req, file, cb) => {
+    try {
+      const dir = resolveUploadDir(req);
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    } catch (err) {
+      // Folder creation failed for some reason (permissions, disk, etc.)
+      // — fall back to the flat uploads/ folder rather than failing the
+      // whole request, since that folder is guaranteed to already exist.
+      cb(null, uploadsDir);
+    }
+  },
   filename: (req, file, cb) => {
-    const uniqueToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    cb(null, `${uniqueToken}${path.extname(file.originalname)}`);
+    // Keep the roll_no as the actual filename when we have one — makes
+    // the nested folder genuinely browsable (uploads/m/5/a/12.jpg), not
+    // just organized with a random name inside it. Falls back to the
+    // previous random-token scheme when roll_no isn't available (flat
+    // fallback case above), so nothing collides or breaks either way.
+    const rollNo = safeSegment(req.body && req.body.roll_no);
+    const ext = path.extname(file.originalname);
+    if (rollNo) {
+      cb(null, `${rollNo}${ext}`);
+    } else {
+      const uniqueToken = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      cb(null, `${uniqueToken}${ext}`);
+    }
   }
 });
 
@@ -67,7 +125,12 @@ router.post('/upload-photo', can('students.add'), upload.single('photo'), async 
     if (!req.file) {
       return res.status(400).json({ error: 'Photo file is required.' });
     }
-    const url = `/uploads/${req.file.filename}`;
+    // req.file.path is the absolute path multer actually wrote to (inside
+    // uploadsDir or a nested subfolder of it) — derive the public URL
+    // from that instead of assuming a flat uploads/<filename> shape, so
+    // nested uploads (uploads/m/5/a/12.jpg) get the correct URL.
+    const relative = path.relative(uploadsDir, req.file.path).split(path.sep).join('/');
+    const url = `/uploads/${relative}`;
     res.json({ url });
   } catch (err) {
     next(err);
@@ -193,7 +256,12 @@ router.delete('/left/:id', can('left-students.delete'), async (req, res, next) =
 
     const photoUrl = rows[0].photo_url;
     if (photoUrl && photoUrl.startsWith('/uploads/')) {
-      const photoPath = path.join(uploadsDir, path.basename(photoUrl));
+      // Use the full path under uploads/ (e.g. 'm/5/a/12.jpg'), not just
+      // the filename — path.basename() alone would drop the nested
+      // gender/class/section subfolder and silently fail to delete the
+      // real file, leaving orphaned photos on disk.
+      const relativePath = photoUrl.replace(/^\/uploads\//, '');
+      const photoPath = path.join(uploadsDir, relativePath);
       fs.unlink(photoPath, (err) => {
         if (err && err.code !== 'ENOENT') {
           console.error('Failed to delete left-student photo:', photoPath, err.message);
@@ -507,7 +575,11 @@ router.delete('/:id', can('students.delete'), async (req, res, next) => {
     // external http(s) photo_url values.
     const photoUrl = rows[0].photo_url;
     if (photoUrl && photoUrl.startsWith('/uploads/')) {
-      const photoPath = path.join(uploadsDir, path.basename(photoUrl));
+      // See left-students delete route above for why we can't use
+      // path.basename() here — it would drop the nested
+      // gender/class/section subfolder.
+      const relativePath = photoUrl.replace(/^\/uploads\//, '');
+      const photoPath = path.join(uploadsDir, relativePath);
       fs.unlink(photoPath, (err) => {
         if (err && err.code !== 'ENOENT') {
           console.error('Failed to delete student photo:', photoPath, err.message);

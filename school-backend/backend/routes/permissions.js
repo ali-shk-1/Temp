@@ -195,6 +195,98 @@ router.put('/:role/visibility', async (req, res, next) => {
 });
 
 /* ─────────────────────────────────────────
+   POST /api/permissions/users/:role
+   Body: { username, password }
+   Creates the single login account for a manageable role (admin,
+   principal, vice_principal, accountant, viewer) — each role has exactly
+   one account, same 1:1 model as create-admin.js etc. Fails with 409 if
+   that role already has an account; use rename/reset-password instead.
+───────────────────────────────────────── */
+router.post('/users/:role', async (req, res, next) => {
+  try {
+    const role = String(req.params.role || '').toLowerCase();
+    const { username, password } = req.body;
+
+    if (!MANAGEABLE_ROLES.includes(role)) {
+      return res.status(400).json({ error: `role must be one of: ${MANAGEABLE_ROLES.join(', ')}.` });
+    }
+    if (!username || !username.trim()) {
+      return res.status(400).json({ error: 'username is required.' });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'password is required and must be at least 6 characters.' });
+    }
+
+    const { rows: existingForRole } = await pool.query(
+      `SELECT u.user_id FROM users u
+       JOIN roles r ON r.role_id = u.role_id
+       WHERE r.role_name = $1`,
+      [role]
+    );
+    if (existingForRole.length > 0) {
+      return res.status(409).json({ error: `An account already exists for the ${role} role. Rename or reset its password instead.` });
+    }
+
+    const { rows: dupe } = await pool.query('SELECT user_id FROM users WHERE username = $1', [username.trim()]);
+    if (dupe.length > 0) return res.status(409).json({ error: `Username "${username}" is already taken.` });
+
+    // Make sure the role exists (roles for vice_principal/accountant were
+    // added by later migrations; no-op if it's already there).
+    await pool.query(`INSERT INTO roles (role_name) VALUES ($1) ON CONFLICT (role_name) DO NOTHING`, [role]);
+    const { rows: roleRows } = await pool.query('SELECT role_id FROM roles WHERE role_name = $1', [role]);
+    const role_id = roleRows[0].role_id;
+
+    const hash = await bcrypt.hash(password, 12);
+    const { rows } = await pool.query(
+      `INSERT INTO users (username, password_hash, role_id, is_active)
+       VALUES ($1, $2, $3, true)
+       RETURNING user_id, username, is_active`,
+      [username.trim(), hash, role_id]
+    );
+
+    res.status(201).json({ message: 'Account created.', user: rows[0] });
+    broadcast('permissions.changed', { action: 'user_created', role });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ─────────────────────────────────────────
+   PATCH /api/permissions/users/:user_id/toggle
+   Enable/disable a role's account without deleting it — the account
+   (and its role/permissions) is kept, just blocked from logging in.
+   Mirrors PATCH /api/auth/users/:id/toggle, but scoped to the roles this
+   page manages, and broadcasts permissions.changed instead of nothing
+   so every open Permissions page updates live.
+───────────────────────────────────────── */
+router.patch('/users/:user_id/toggle', async (req, res, next) => {
+  try {
+    const { rows: targetRows } = await pool.query(
+      `SELECT u.user_id, r.role_name AS role
+       FROM users u JOIN roles r ON r.role_id = u.role_id
+       WHERE u.user_id = $1`,
+      [req.params.user_id]
+    );
+    if (targetRows.length === 0) return res.status(404).json({ error: 'User not found.' });
+    if (!MANAGEABLE_ROLES.includes(String(targetRows[0].role).toLowerCase())) {
+      return res.status(403).json({ error: 'Can only enable/disable admin, principal, vice_principal, accountant, or viewer accounts.' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE users SET is_active = NOT is_active
+       WHERE user_id = $1
+       RETURNING user_id, username, is_active`,
+      [req.params.user_id]
+    );
+
+    res.json({ message: `Account ${rows[0].is_active ? 'enabled' : 'disabled'}.`, user: rows[0] });
+    broadcast('permissions.changed', { action: 'user_toggled', user_id: rows[0].user_id, is_active: rows[0].is_active });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ─────────────────────────────────────────
    PUT /api/permissions/users/:user_id
    Body: { username }
    ali renames an existing admin/principal/viewer account's username.

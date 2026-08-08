@@ -397,11 +397,18 @@
       if (id) {
         if (photoFile) {
           const formData = new FormData();
-          formData.append('photo', photoFile);
+          // NOTE: text fields must be appended BEFORE the file field.
+          // multer/busboy streams multipart fields in the order they
+          // arrive, and our dynamic destination() function (which sorts
+          // photos into uploads/<gender>/<class>/<section>/<roll_no>.ext)
+          // needs class/section/roll_no/gender already parsed from
+          // req.body by the time it runs for the photo part.
           formData.append('first_name', body.first_name);
           formData.append('class', body.class);
           formData.append('section', body.section);
           formData.append('roll_no', body.roll_no || '');
+          formData.append('gender', body.gender || '');
+          formData.append('photo', photoFile);
           const upload = await apiForm('/api/students/upload-photo', formData);
           body.photo_url = upload.url;
         }
@@ -412,11 +419,12 @@
         const studentRes = await api('POST', '/api/students', createBody);
         if (photoFile) {
           const uploadForm = new FormData();
-          uploadForm.append('photo', photoFile);
           uploadForm.append('first_name', studentRes.student.first_name);
           uploadForm.append('class', studentRes.student.class);
           uploadForm.append('section', studentRes.student.section);
           uploadForm.append('roll_no', studentRes.student.roll_no || '');
+          uploadForm.append('gender', studentRes.student.gender || '');
+          uploadForm.append('photo', photoFile);
           const upload = await apiForm('/api/students/upload-photo', uploadForm);
           await api('PUT', `/api/students/${studentRes.student.student_id}`, { ...body, photo_url: upload.url });
         }

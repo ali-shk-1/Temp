@@ -87,6 +87,31 @@
     </div>
   </div>
 
+  <!-- Create Account Modal — for a role that has no login account yet -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-header">
+        <h2 class="modal-title" id="createModalTitle">Create Account</h2>
+        <button class="modal-close" onclick="closeCreateModal()">×</button>
+      </div>
+      <form onsubmit="return false;">
+        <input type="hidden" id="createRole"/>
+        <div class="form-group">
+          <label>Username *</label>
+          <input type="text" id="createUsername" placeholder="Username" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label>Password *</label>
+          <input type="password" id="createPassword" placeholder="At least 6 characters" autocomplete="new-password"/>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" onclick="closeCreateModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveCreate()">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Rename Username Modal -->
   <div class="modal-overlay" id="renameModal">
     <div class="modal" style="max-width:380px;">
@@ -130,6 +155,8 @@
         hides that button/action for every user with that role, immediately —
         no re-login required for pages loaded after the change. Ali always has
         every permission and cannot be restricted here.
+        Each role has exactly one login account — create it if missing, or
+        enable/disable it without losing its permission settings.
       </p>
     </div>
 
@@ -225,10 +252,11 @@
                 <div class="perm-user-title">${roleLabel}</div>
                 <div class="perm-user-sub">${usernames}</div>
               </div>
-              ${firstUser ? `<div style="display:flex;gap:8px;">
+              ${firstUser ? `<div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-outline btn-sm" onclick="openRenameModal(${firstUser.user_id}, '${firstUser.username}')">Rename</button>
                 <button class="btn btn-outline btn-sm" onclick="openPwModal(${firstUser.user_id}, '${firstUser.username}')">Change Password</button>
-              </div>` : ''}
+                <button class="btn btn-outline btn-sm" onclick="toggleUserActive(${firstUser.user_id}, ${firstUser.is_active})">${firstUser.is_active ? 'Disable' : 'Enable'}</button>
+              </div>` : `<button class="btn btn-primary btn-sm" onclick="openCreateModal('${roleEntry.role}', '${roleLabel}')">Create Account</button>`}
             </div>
             ${pageVisHtml}
             ${groupsHtml}
@@ -331,6 +359,54 @@
         });
         showToast('Your password has been updated.');
         closeMyPwModal();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    function openCreateModal(role, roleLabel) {
+      document.getElementById('createRole').value = role;
+      document.getElementById('createUsername').value = '';
+      document.getElementById('createPassword').value = '';
+      document.getElementById('createModalTitle').textContent = `Create Account — ${roleLabel}`;
+      document.getElementById('createModal').classList.add('open');
+    }
+
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.remove('open');
+    }
+
+    async function saveCreate() {
+      const role = document.getElementById('createRole').value;
+      const username = document.getElementById('createUsername').value.trim();
+      const password = document.getElementById('createPassword').value;
+
+      if (!username) { showToast('Username is required.', 'error'); return; }
+      if (!password || password.length < 6) {
+        showToast('Password must be at least 6 characters.', 'error'); return;
+      }
+
+      try {
+        await api('POST', `/api/permissions/users/${role}`, { username, password });
+        showToast('Account created.');
+        closeCreateModal();
+        loadPermissions();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // Enable/disable without deleting the account — its role and every
+    // permission toggle set for that role stay exactly as they were;
+    // a disabled account just can't log in (see POST /api/auth/login,
+    // which checks is_active).
+    async function toggleUserActive(userId, currentlyActive) {
+      const verb = currentlyActive ? 'disable' : 'enable';
+      if (!confirm(`Are you sure you want to ${verb} this account?`)) return;
+      try {
+        await api('PATCH', `/api/permissions/users/${userId}/toggle`);
+        showToast(`Account ${currentlyActive ? 'disabled' : 'enabled'}.`);
+        loadPermissions();
       } catch (e) {
         showToast(e.message, 'error');
       }
