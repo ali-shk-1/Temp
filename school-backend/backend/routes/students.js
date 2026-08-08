@@ -487,8 +487,8 @@ router.put('/:id', can('students.edit'), async (req, res, next) => {
     if (!allowedClasses.has(normalizedClass)) {
       return res.status(400).json({ error: 'Class must be one of playgroup, nursery, prep, or 1 through 10.' });
     }
-    const rollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
-    if (rollNo != null && (!Number.isInteger(rollNo) || rollNo <= 0)) {
+    const explicitRollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
+    if (explicitRollNo != null && (!Number.isInteger(explicitRollNo) || explicitRollNo <= 0)) {
       return res.status(400).json({ error: 'Roll No must be a positive integer if provided.' });
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -506,34 +506,86 @@ router.put('/:id', can('students.edit'), async (req, res, next) => {
       return res.status(400).json({ error: 'gender must be "male" or "female" if provided.' });
     }
 
-    let rows;
-    try {
-      ({ rows } = await pool.query(
-        `UPDATE students SET
-           roll_no=COALESCE($1, roll_no), section=$2, class=$3, first_name=$4, last_name=$5,
-           father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
-           admission_date=COALESCE($12, admission_date),
-           fee_start_month=COALESCE($13, fee_start_month),
-           gender=$14
-         WHERE student_id=$15
-         RETURNING *`,
-        [rollNo, section, normalizedClass, first_name, last_name,
-         father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
-         admission_date || null, normalizedFeeStart || null, normalizedGender || null, req.params.id]
-      ));
-    } catch (err) {
-      if (err.code === '23505' &&
+    const { rows: currentRows } = await pool.query(
+      'SELECT class, section, gender, roll_no FROM students WHERE student_id = $1',
+      [req.params.id]
+    );
+    if (currentRows.length === 0) return res.status(404).json({ error: 'Student not found.' });
+    const current = currentRows[0];
+
+    // A student's roll_no is only meaningful within their own
+    // class+section+gender group (see migration 014). If any of those
+    // three are changing here and the caller didn't explicitly type a
+    // new roll number, keeping the old one would either collide with
+    // someone already holding that number in the new group, or — worse
+    // — silently "land" on a free number that has nothing to do with
+    // the new group's actual 1,2,3... sequence.
+    //
+    // Instead: leave the old roll_no as a spare/unused gap in the old
+    // group (nobody else there is renumbered), and assign the next
+    // available roll_no in the new group — exactly the same logic
+    // POST / uses for a brand-new student. An explicitly-typed roll_no
+    // is always honored as-is (and only blocked on a real collision),
+    // same as before.
+    const scopeChanged = normalizedClass !== current.class ||
+      section !== current.section ||
+      (normalizedGender || null) !== (current.gender || null);
+
+    // MAX_ATTEMPTS retry mirrors POST / — guards against a race where two
+    // edits into the same new group at once could both compute the same
+    // "next" roll number before either commits.
+    const MAX_ATTEMPTS = 5;
+    let lastErr;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      let rollNo = explicitRollNo;
+      if (rollNo == null && scopeChanged) {
+        const { rows: maxRow } = await pool.query(
+          `SELECT MAX(roll_no) AS max_roll FROM students
+           WHERE class = $1 AND section = $2 AND COALESCE(gender, 'unspecified') = COALESCE($3, 'unspecified')`,
+          [normalizedClass, section, normalizedGender]
+        );
+        const maxRoll = maxRow[0]?.max_roll;
+        rollNo = maxRoll != null ? maxRoll + 1 : 1;
+      }
+
+      try {
+        const { rows } = await pool.query(
+          `UPDATE students SET
+             roll_no=COALESCE($1, roll_no), section=$2, class=$3, first_name=$4, last_name=$5,
+             father_name=$6, contact_1=$7, contact_2=$8, email=$9, photo_url=$10, address=$11,
+             admission_date=COALESCE($12, admission_date),
+             fee_start_month=COALESCE($13, fee_start_month),
+             gender=$14
+           WHERE student_id=$15
+           RETURNING *`,
+          [rollNo, section, normalizedClass, first_name, last_name,
+           father_name || null, contact_1 || null, contact_2 || null, email || null, photo_url || null, address || null,
+           admission_date || null, normalizedFeeStart || null, normalizedGender || null, req.params.id]
+        );
+
+        res.json({ message: 'Student updated.', student: rows[0] });
+        broadcast('students.changed', { action: 'updated', student_id: rows[0].student_id });
+        return;
+      } catch (err) {
+        const isRollNoCollision = err.code === '23505' &&
           (err.constraint === 'students_class_section_gender_roll_no_unique' ||
            err.constraint === 'students_class_roll_no_unique' ||
-           /roll_no/i.test(err.detail || ''))) {
-        return res.status(409).json({ error: 'That Roll No is already in use for this class, section, and gender.' });
+           /roll_no/i.test(err.detail || ''));
+        // Only auto-retry when we computed the roll number ourselves
+        // (scope changed, no explicit roll_no given); an explicitly
+        // supplied roll_no that collides is a real conflict to report,
+        // not silently reassign.
+        if (isRollNoCollision && explicitRollNo == null && scopeChanged && attempt < MAX_ATTEMPTS - 1) {
+          lastErr = err;
+          continue;
+        }
+        if (isRollNoCollision) {
+          return res.status(409).json({ error: 'That Roll No is already in use for this class, section, and gender.' });
+        }
+        throw err;
       }
-      throw err;
     }
-
-    if (rows.length === 0) return res.status(404).json({ error: 'Student not found.' });
-    res.json({ message: 'Student updated.', student: rows[0] });
-    broadcast('students.changed', { action: 'updated', student_id: rows[0].student_id });
+    throw lastErr;
   } catch (err) {
     next(err);
   }
