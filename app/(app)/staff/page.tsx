@@ -303,7 +303,7 @@ function StaffContent() {
           </div>
           <form onSubmit={(e) => e.preventDefault()}>
             <div className="form-row">
-              <div className="form-group" style={{ gridColumn: '1/-1' }}>
+              <div className="form-group [grid-column:1/-1]">
                 <label>Full Name *</label>
                 <input
                   type="text"
@@ -314,7 +314,7 @@ function StaffContent() {
               </div>
             </div>
             <div className="form-row">
-              <div className="form-group" style={{ flex: '1 1 100%' }}>
+              <div className="form-group flex-[1_1_100%]">
                 <label>CNIC *</label>
                 <input
                   type="text"
@@ -391,13 +391,13 @@ function StaffContent() {
                       </option>
                     ))}
                 </select>
-                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
+                <small className="text-secondary block mt-1">
                   Optional. Assign this staff member as reporting to another staff member with an Admin designation.
                 </small>
               </div>
             </div>
             <div className="form-row">
-              <div className="form-group" style={{ width: '100%' }}>
+              <div className="form-group w-full">
                 <label>Upload Photo</label>
                 <input
                   ref={photoFileInputRef}
@@ -405,33 +405,17 @@ function StaffContent() {
                   accept="image/*"
                   onChange={(e) => previewSelectedPhoto(e.target.files?.[0] || null)}
                 />
-                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
+                <small className="text-secondary block mt-1">
                   Saved as uploads/staff/&lt;CNIC&gt;.ext — replaces any existing photo for this CNIC.
                 </small>
               </div>
             </div>
-            <div className="form-row" style={{ display: photoPreview ? 'flex' : 'none' }}>
-              <div className="form-group" style={{ width: '100%' }}>
+            <div className={`form-row ${photoPreview ? 'flex' : 'hidden'}`}>
+              <div className="form-group w-full">
                 <label>Photo Preview</label>
-                <div
-                  style={{
-                    border: '1px solid #ccc',
-                    borderRadius: 8,
-                    overflow: 'hidden',
-                    width: 160,
-                    height: 160,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'var(--input-bg)',
-                  }}
-                >
+                <div className="border border-[#ccc] rounded-lg overflow-hidden w-40 h-40 flex items-center justify-center bg-input-bg">
                   {photoPreview && (
-                    <img
-                      src={photoPreview}
-                      alt="Photo preview"
-                      style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
-                    />
+                    <img src={photoPreview} alt="Photo preview" className="max-w-full max-h-full block" />
                   )}
                 </div>
               </div>
@@ -450,7 +434,7 @@ function StaffContent() {
 
       {/* Designation Modal */}
       <div className={`modal-overlay${desigModalOpen ? ' open' : ''}`}>
-        <div className="modal" style={{ maxWidth: 380 }}>
+        <div className="modal max-w-[380px]">
           <div className="modal-header">
             <h2 className="modal-title">Manage Designations</h2>
             <button className="modal-close" onClick={closeDesigModal}>
@@ -460,11 +444,11 @@ function StaffContent() {
           {hasPerm('staff.designations') && (
             <div className="form-group">
               <label>Add New Designation</label>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="flex gap-2">
                 <input
                   type="text"
                   placeholder="e.g. Teacher"
-                  className="border-input" style={{ flex: 1, padding: 8, borderRadius: 4 }}
+                  className="border-input flex-1 p-2 rounded"
                   value={newDesigTitle}
                   onChange={(e) => setNewDesigTitle(e.target.value)}
                 />
@@ -474,21 +458,15 @@ function StaffContent() {
               </div>
             </div>
           )}
-          <div style={{ marginTop: 12 }}>
+          <div className="mt-3">
             {designations.length === 0 ? (
               <p className="empty">No designations yet.</p>
             ) : (
-              <div className="border-subtle" style={{ borderRadius: 4 }}>
+              <div className="border-subtle rounded">
                 {designations.map((d, i) => (
                   <div
                     key={d.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      borderTop: i ? '1px solid #eee' : undefined,
-                    }}
+                    className={`flex items-center justify-between px-3 py-2 ${i ? 'border-t border-[#eee]' : ''}`}
                   >
                     <span>{d.title}</span>
                     {hasPerm('staff.designations') && (
@@ -507,7 +485,7 @@ function StaffContent() {
       <div className="page">
         <div className="page-header">
           <h1 className="page-title">Staff</h1>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="flex gap-2">
             {hasPerm('staff.designations') && (
               <button className="btn btn-outline" onClick={openDesigModal}>
                 Designations
@@ -521,7 +499,7 @@ function StaffContent() {
           </div>
         </div>
 
-        <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card mb-4">
           <div className="filters">
             <input
               className="search-box"
@@ -547,7 +525,7 @@ function StaffContent() {
                 </option>
               ))}
             </select>
-            <span className="text-secondary" style={{ fontSize: 14, fontWeight: 600, marginLeft: 'auto' }}>
+            <span className="text-secondary text-sm font-semibold ml-auto">
               {filtered.length} staff member{filtered.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -593,7 +571,7 @@ function StaffContent() {
                           <img
                             src={s.photo_url}
                             alt={s.name}
-                            style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                            className="w-8 h-8 rounded-full object-cover block"
                           />
                         ) : (
                           '—'

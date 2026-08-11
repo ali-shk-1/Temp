@@ -343,14 +343,15 @@ function DashboardContent() {
 
   return (
     <div className="page">
-      <div className="page-header" style={{ alignItems: 'center', gap: 10 }}>
+      <div className="page-header flex flex-wrap items-center gap-2.5">
         <div>
           <h1 className="page-title">Dashboard</h1>
-          <span className="text-muted" style={{ fontSize: 13 }}>
-            {todayDate}
-          </span>
+          <span className="text-muted text-[13px]">{todayDate}</span>
         </div>
-        <button className="btn btn-primary" onClick={() => (window.location.href = '/fees?action=record-payment')}>
+        <button
+          className="btn btn-primary transition-transform duration-150 active:scale-95"
+          onClick={() => (window.location.href = '/fees?action=record-payment')}
+        >
           Record Fee
         </button>
       </div>
@@ -394,9 +395,9 @@ function DashboardContent() {
           <div className="section-title">Today's Fee Collections</div>
           {todayFeesHtml === 'Loading…' ? (
             <div>
-              <div className="skeleton skeleton-text" style={{ width: '80%' }} />
-              <div className="skeleton skeleton-text" style={{ width: '60%' }} />
-              <div className="skeleton skeleton-text" style={{ width: '70%' }} />
+              <div className="skeleton skeleton-text w-4/5" />
+              <div className="skeleton skeleton-text w-3/5" />
+              <div className="skeleton skeleton-text w-[70%]" />
             </div>
           ) : (
             <div dangerouslySetInnerHTML={{ __html: todayFeesHtml }} />
@@ -406,9 +407,9 @@ function DashboardContent() {
           <div className="section-title">Fee Defaulters — Selected Month</div>
           {defaultersHtml === 'Loading…' ? (
             <div>
-              <div className="skeleton skeleton-text" style={{ width: '75%' }} />
-              <div className="skeleton skeleton-text" style={{ width: '65%' }} />
-              <div className="skeleton skeleton-text" style={{ width: '55%' }} />
+              <div className="skeleton skeleton-text w-[75%]" />
+              <div className="skeleton skeleton-text w-[65%]" />
+              <div className="skeleton skeleton-text w-[55%]" />
             </div>
           ) : (
             <div dangerouslySetInnerHTML={{ __html: defaultersHtml }} />
@@ -419,7 +420,7 @@ function DashboardContent() {
       {/* Monthly Fee Summary */}
       <div className="card">
         <div className="section-title">Monthly Fee Summary</div>
-        <div className="filters" style={{ marginBottom: 12 }}>
+        <div className="filters mb-3">
           <select value={month} onChange={(e) => setMonth(e.target.value)}>
             {months.map((m) => (
               <option key={m.value} value={m.value}>

@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind theme mapping — every utility class below (bg-card, text-muted,
+ * border-subtle, bg-accent, etc.) resolves to the SAME CSS custom property
+ * already defined in style.css's `:root` / `[data-theme="dark"]` blocks.
+ * This means:
+ *   1. Existing hand-written CSS in style.css keeps working exactly as-is
+ *      (nothing there needs to change — same colors, same dark mode).
+ *   2. New/converted markup can use Tailwind utilities (`className="bg-card
+ *      border border-subtle text-text"`) instead of custom CSS classes,
+ *      and it will look pixel-identical because it points at the same
+ *      variable.
+ * This is intentionally a *mapping* layer, not a new palette — the actual
+ * color values still live in style.css so there is exactly one source of
+ * truth for both the old CSS classes and the new Tailwind utilities.
+ */
+@theme {
+  --color-bg: var(--bg);
+  --color-text: var(--text);
+  --color-card: var(--card-bg);
+  --color-border: var(--border);
+  --color-border-input: var(--input-border);
+
+  --color-nav-bg: var(--nav-bg);
+  --color-nav-text: var(--nav-text);
+  --color-nav-link: var(--nav-link);
+
+  --color-th: var(--th-bg);
+  --color-th-text: var(--th-text);
+  --color-td-text: var(--td-text);
+  --color-row-hover: var(--row-hover);
+
+  --color-input-bg: var(--input-bg);
+  --color-muted: var(--muted);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+
+  --color-success-bg: var(--success-bg);
+  --color-success-text: var(--success-text);
+  --color-success-fg: var(--success-fg);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-text: var(--danger-text);
+  --color-danger-fg: var(--danger-fg);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-text: var(--warning-text);
+  --color-warning-fg: var(--warning-fg);
+  --color-info-bg: var(--info-bg);
+  --color-info-text: var(--info-text);
+  --color-info-fg: var(--info-fg);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-focus-ring: var(--focus-ring);
+  --color-overlay: var(--overlay);
+
+  --shadow-card-sm: var(--shadow-sm);
+  --shadow-card-md: var(--shadow-md);
+  --shadow-card-lg: var(--shadow-lg);
+}
+
+/* Existing hand-written app styles (nav bar, cards, tables, forms, theme
+   tokens, mobile breakpoints, skeleton loaders, page-transition fades)
+   are preserved as-is so no visual behavior changes as part of the
+   Tailwind migration. */
+@import "./style.css";
+@import "./students.css";
+
+/* Offscreen long lists/tables get a light rendering hint so the browser
+   can skip layout/paint work for rows not currently in view — a real,
+   safe speed win on long tables (students/fees/staff) with no visual
+   change, since content-visibility only affects paint/layout timing. */
+.table-wrap {
+  content-visibility: auto;
+  contain-intrinsic-size: 600px;
+}

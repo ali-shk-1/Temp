@@ -302,7 +302,7 @@ function ExpensesContent() {
     <>
       {/* Add/Edit Expense Modal */}
       <div className={`modal-overlay${expModalOpen ? ' open' : ''}`}>
-        <div className="modal" style={{ maxWidth: 480 }}>
+        <div className="modal max-w-[480px]">
           <div className="modal-header">
             <h2 className="modal-title">{expForm.expense_id ? 'Edit Expense' : 'Add Expense'}</h2>
             <button className="modal-close" onClick={closeExpModal}>
@@ -365,7 +365,7 @@ function ExpensesContent() {
 
       {/* Category Modal */}
       <div className={`modal-overlay${catModalOpen ? ' open' : ''}`}>
-        <div className="modal" style={{ maxWidth: 380 }}>
+        <div className="modal max-w-[380px]">
           <div className="modal-header">
             <h2 className="modal-title">Manage Categories</h2>
             <button className="modal-close" onClick={closeCatModal}>
@@ -375,12 +375,11 @@ function ExpensesContent() {
           {hasPerm('expenses.categories') && (
             <div className="form-group">
               <label>New Category Name</label>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="flex gap-2">
                 <input
                   type="text"
                   placeholder="e.g. Utilities"
-                  className="mini-input"
-                  style={{ flex: 1 }}
+                  className="mini-input flex-1"
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
                 />
@@ -390,7 +389,7 @@ function ExpensesContent() {
               </div>
             </div>
           )}
-          <div style={{ marginTop: 12 }}>
+          <div className="mt-3">
             {categories.length === 0 ? (
               <p className="empty">No categories yet.</p>
             ) : (
@@ -417,7 +416,7 @@ function ExpensesContent() {
       <div className="page">
         <div className="page-header">
           <h1 className="page-title">Expenses</h1>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="flex gap-2">
             {hasPerm('expenses.categories') && (
               <button className="btn btn-outline" onClick={openCatModal}>
                 Categories
@@ -447,20 +446,20 @@ function ExpensesContent() {
           </div>
           <div className="stat-card">
             <div className="label">Top Category (Month)</div>
-            <div className="value" style={{ fontSize: 14 }}>
+            <div className="value text-sm">
               {statTopCat}
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="card" style={{ marginBottom: 12 }}>
+        <div className="card mb-3">
           <div className="filters">
-            <label className="text-muted" style={{ fontSize: 12 }}>
+            <label className="text-muted text-xs">
               From:
             </label>
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            <label className="text-muted" style={{ fontSize: 12 }}>
+            <label className="text-muted text-xs">
               To:
             </label>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
@@ -551,7 +550,7 @@ function ExpensesContent() {
               </table>
             </div>
             {expenses && expenses.length > 0 && (
-              <div className="amount-danger" style={{ textAlign: 'right', fontSize: 13, padding: '10px 0 0' }}>
+              <div className="amount-danger text-right text-[13px] pt-2.5">
                 Total: {formatMoney(total)}
               </div>
             )}
@@ -565,12 +564,12 @@ function ExpensesContent() {
               <p className="empty">No data.</p>
             ) : (
               catBreakdown.map(({ name, amt, pct }) => (
-                <div style={{ marginBottom: 12 }} key={name}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                <div className="mb-3" key={name}>
+                  <div className="flex justify-between text-xs mb-[3px]">
                     <span>{name}</span>
-                    <span style={{ fontWeight: 600 }}>
+                    <span className="font-semibold">
                       {formatMoney(amt)}{' '}
-                      <span className="text-muted" style={{ fontWeight: 400 }}>
+                      <span className="text-muted font-normal">
                         ({pct}%)
                       </span>
                     </span>

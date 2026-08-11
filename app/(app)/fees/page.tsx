@@ -898,7 +898,7 @@ function FeesContent() {
             </button>
           </div>
           <form ref={payFormRef} onSubmit={(e) => e.preventDefault()}>
-            <div className="form-group" style={{ position: 'relative' }} ref={payWrapRef as any}>
+            <div className="form-group relative" ref={payWrapRef as any}>
               <label>Student *</label>
               <input
                 type="text"
@@ -915,17 +915,14 @@ function FeesContent() {
                 onFocus={() => setPayResultsOpen(true)}
               />
               {payResultsOpen && (
-                <div
-                  className="popup-panel"
-                  style={{ display: 'block', position: 'absolute', zIndex: 20, left: 0, right: 0, top: '100%', maxHeight: 180, overflowY: 'auto' }}
-                >
+                <div className="popup-panel block absolute z-20 left-0 right-0 top-full max-h-[180px] overflow-y-auto">
                   {payMatches.length === 0 ? (
-                    <div className="text-muted" style={{ padding: '8px 10px', fontSize: 12 }}>No matching student.</div>
+                    <div className="text-muted px-2.5 py-2 text-xs">No matching student.</div>
                   ) : (
                     payMatches.map((s) => (
                       <div
                         key={s.student_id}
-                        className="popup-option" style={{ padding: '8px 10px', cursor: 'pointer', fontSize: 13 }}
+                        className="popup-option px-2.5 py-2 cursor-pointer text-[13px]"
                         onMouseDown={() => selectPayStudent(s.student_id)}
                       >
                         Roll {s.roll_no} — {s.first_name} {s.last_name} <span className="text-muted">({s.class}-{s.section})</span>
@@ -956,20 +953,21 @@ function FeesContent() {
                   Deposit on a different day (e.g. fee came in yesterday)
                 </label>
                 {useCustomDate && (
-                  <input type="date" style={{ marginTop: 6, display: 'block' }} value={customDate} onChange={(e) => setCustomDate(e.target.value)} />
+                  <input type="date" className="mt-1.5 block" value={customDate} onChange={(e) => setCustomDate(e.target.value)} />
                 )}
-                <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                <div className="text-muted text-xs mt-1">
                   This payment (and its receipt) will appear under the collection totals for the date you pick instead of today.
                 </div>
               </div>
             )}
-            <div className="text-muted" style={{ fontSize: 12, marginBottom: 10 }}>
+            <div className="text-muted text-xs mb-2.5">
               For free students, enter 0 for both Amount Due and Amount Paid.
             </div>
             {existingPayInfo && (
-              <div className="notice-box" style={{ padding: 10, borderRadius: 4, fontSize: 12, marginBottom: 10 }}>
+              <div className="notice-box p-2.5 rounded mb-2.5 text-xs">
                 {existingPayInfo}
               </div>
+
             )}
             <div className="modal-footer">
               <button type="button" className="btn btn-outline" onClick={closePayModal}>
@@ -992,19 +990,19 @@ function FeesContent() {
               ×
             </button>
           </div>
-          <div style={{ padding: '4px 2px 14px', fontSize: 13, color: 'var(--text)' }}>
-            <div style={{ textAlign: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: 32 }}>✅</div>
+          <div className="px-0.5 pt-1 pb-3.5 text-[13px] text-text">
+            <div className="text-center mb-2.5">
+              <div className="text-[32px]">✅</div>
               <div>Payment saved successfully.</div>
             </div>
             {receiptData && (
-              <div className="popup-panel" style={{ borderRadius: 6, padding: '10px 12px', lineHeight: 1.6 }}>
+              <div className="popup-panel rounded-md px-3 py-2.5 leading-relaxed">
                 {receiptData.photo_url && (
-                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+                  <div className="mb-3 flex justify-center">
                     <img
                       src={receiptData.photo_url}
                       alt="Student photo"
-                      className="border-input" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 16 }}
+                      className="border-input w-[120px] h-[120px] object-cover rounded-2xl"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
@@ -1043,7 +1041,7 @@ function FeesContent() {
       <div className="page">
         <div className="page-header">
           <h1 className="page-title">Fee Management</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="flex items-center gap-3.5">
             <div className="period-switch" title="Choose which receipt layout printing uses">
               <span className={`period-label${thermalMode ? ' inactive' : ''}`}>Paper</span>
               <label className="toggle-switch">
@@ -1053,7 +1051,7 @@ function FeesContent() {
               <span className={`period-label${!thermalMode ? ' inactive' : ''}`}>Thermal</span>
             </div>
             {canAddFees() && (
-              <button className="btn btn-success" onClick={openPayModal}>
+              <button className="btn btn-success transition-transform duration-150 active:scale-95" onClick={openPayModal}>
                 + Record Payment
               </button>
             )}
@@ -1075,7 +1073,7 @@ function FeesContent() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: '1px solid var(--border)' }}>
+        <div className="flex gap-0.5 mb-4 border-b border-border overflow-x-auto">
           <button className={`tab-btn${tab === 'monthly' ? ' active' : ''}`} onClick={() => setTab('monthly')}>
             Monthly Records
           </button>
@@ -1093,9 +1091,9 @@ function FeesContent() {
         {/* MONTHLY TAB */}
         {tab === 'monthly' && (
           <div>
-            <div className="card" style={{ marginBottom: 12 }}>
+            <div className="card mb-3">
               <div className="filters">
-                <label className="text-muted" style={{ fontSize: 12 }}>
+                <label className="text-muted text-xs">
                   Month:
                 </label>
                 <input type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} />
@@ -1120,17 +1118,16 @@ function FeesContent() {
                   <option value="partial">Partial</option>
                   <option value="unpaid">Unpaid</option>
                 </select>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
                   <input type="checkbox" checked={feeFilterBoys} onChange={(e) => setFeeFilterBoys(e.target.checked)} /> Boys
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
                   <input type="checkbox" checked={feeFilterGirls} onChange={(e) => setFeeFilterGirls(e.target.checked)} /> Girls
                 </label>
                 <input
                   type="text"
                   placeholder="Search student…"
-                  className="mini-input"
-                  style={{ width: 180 }}
+                  className="mini-input w-[180px]"
                   value={feeSearch}
                   onChange={(e) => setFeeSearch(e.target.value)}
                 />
@@ -1207,7 +1204,7 @@ function FeesContent() {
                               <span className={`badge ${stCls}`}>{stLabel}</span>
                             </td>
                             <td>{r.payment_date ? formatDate(r.payment_date) : '—'}</td>
-                            <td style={{ whiteSpace: 'nowrap' }}>
+                            <td className="whitespace-nowrap">
                               {canPay && (
                                 <button
                                   className="btn btn-outline btn-sm"
@@ -1248,14 +1245,14 @@ function FeesContent() {
         {/* DAILY TAB */}
         {tab === 'daily' && (
           <div>
-            <div className="card" style={{ marginBottom: 12 }}>
+            <div className="card mb-3">
               <div className="filters">
-                <label className="text-secondary" style={{ fontSize: 12 }}>Date:</label>
+                <label className="text-secondary text-xs">Date:</label>
                 <input type="date" value={dailyDateFilter} onChange={(e) => setDailyDateFilter(e.target.value)} />
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
                   <input type="checkbox" checked={dailyFilterBoys} onChange={(e) => setDailyFilterBoys(e.target.checked)} /> Boys
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
                   <input type="checkbox" checked={dailyFilterGirls} onChange={(e) => setDailyFilterGirls(e.target.checked)} /> Girls
                 </label>
               </div>
@@ -1309,7 +1306,7 @@ function FeesContent() {
                           <td>{r.section}</td>
                           <td>{monthLabel(r.academic_month)}</td>
                           <td className="fee-paid">{formatMoney(r.amount_paid)}</td>
-                          <td className="text-muted" style={{ fontSize: 12 }}>
+                          <td className="text-muted text-xs">
                             {r.payment_date ? new Date(r.payment_date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'}
                           </td>
                           <td>
@@ -1324,7 +1321,7 @@ function FeesContent() {
                 </table>
               </div>
               {filteredDaily.length > 0 && (
-                <div className="amount-success" style={{ textAlign: 'right', fontSize: 13, fontWeight: 600, padding: '10px 0 0' }}>
+                <div className="amount-success text-right text-[13px] font-semibold pt-2.5">
                   Total Collected: {formatMoney(dailyTotal)}
                 </div>
               )}
@@ -1335,25 +1332,25 @@ function FeesContent() {
         {/* MONTHLY DEFAULTERS TAB */}
         {tab === 'monthly-defaulters' && (
           <div>
-            <div className="card" style={{ marginBottom: 12 }}>
+            <div className="card mb-3">
               <div className="filters">
-                <label className="text-secondary" style={{ fontSize: 12 }}>Month:</label>
+                <label className="text-secondary text-xs">Month:</label>
                 <input type="month" value={defMonthFilter} onChange={(e) => setDefMonthFilter(e.target.value)} />
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
                   <input type="checkbox" checked={defFilterBoys} onChange={(e) => setDefFilterBoys(e.target.checked)} /> Boys
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
                   <input type="checkbox" checked={defFilterGirls} onChange={(e) => setDefFilterGirls(e.target.checked)} /> Girls
                 </label>
                 <input
                   type="text"
                   placeholder="Search student…"
-                  className="border-input" style={{ padding: '7px 10px', borderRadius: 4, fontSize: 13, flex: 1, minWidth: 180 }}
+                  className="border-input px-2.5 py-[7px] rounded text-[13px] flex-1 min-w-[180px]"
                   value={defSearch}
                   onChange={(e) => setDefSearch(e.target.value)}
                 />
                 {defaultersLoaded && !defaultersLoadFailed && (
-                  <span className="text-secondary" style={{ fontSize: 14, fontWeight: 600, marginLeft: 'auto' }}>
+                  <span className="text-secondary text-sm font-semibold ml-auto">
                     {filteredDefaulters.length} defaulter month{filteredDefaulters.length !== 1 ? 's' : ''} total
                   </span>
                 )}
@@ -1403,7 +1400,7 @@ function FeesContent() {
                         return groupedDefaulters.map((group) => (
                           <Fragment key={`group-${group.academic_month}`}>
                             <tr className="group-header-row" key={`hdr-${group.academic_month}`}>
-                              <td colSpan={12} style={{ fontWeight: 600, padding: '8px 10px' }}>
+                              <td colSpan={12} className="font-semibold px-2.5 py-2">
                                 {monthLabel(group.academic_month)} — {group.count} defaulter{group.count !== 1 ? 's' : ''}
                               </td>
                             </tr>
@@ -1458,14 +1455,14 @@ function FeesContent() {
         {/* HISTORY TAB */}
         {tab === 'history' && (
           <div>
-            <div className="card" style={{ marginBottom: 12 }}>
+            <div className="card mb-3">
               <div className="filters">
-                <div ref={historyWrapRef} style={{ position: 'relative', minWidth: 280 }}>
+                <div ref={historyWrapRef} className="relative min-w-[280px]">
                   <input
                     type="text"
                     autoComplete="off"
                     placeholder="Search student by name or roll no…"
-                    className="border-input" style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                    className="border-input w-full px-2.5 py-[7px] rounded text-[13px] box-border"
                     value={historySearch}
                     onChange={(e) => {
                       setHistorySearch(e.target.value);
@@ -1474,12 +1471,9 @@ function FeesContent() {
                     onFocus={() => setHistoryResultsOpen(true)}
                   />
                   {historyResultsOpen && (
-                    <div
-                      className="popup-panel"
-                      style={{ display: 'block', position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, maxHeight: 260, overflowY: 'auto', borderRadius: '0 0 4px 4px' }}
-                    >
+                    <div className="popup-panel block absolute top-full left-0 right-0 z-20 max-h-[260px] overflow-y-auto rounded-b">
                       {historyMatches.length === 0 ? (
-                        <div className="text-muted" style={{ padding: '8px 10px', fontSize: 13 }}>
+                        <div className="text-muted px-2.5 py-2 text-[13px]">
                           No matching students.
                         </div>
                       ) : (
@@ -1581,7 +1575,7 @@ function FeesContent() {
                 </table>
               </div>
               {historyList.length > 0 && (
-                <div className="text-secondary" style={{ padding: '8px 0 0', fontSize: 13 }}>
+                <div className="text-secondary pt-2 text-[13px]">
                   Total Due: <strong>{formatMoney(historyTotals.totalDue)}</strong> &nbsp;|&nbsp; Total Paid:{' '}
                   <strong className="fee-paid">{formatMoney(historyTotals.totalPaid)}</strong> &nbsp;|&nbsp; Outstanding:{' '}
                   <strong className="fee-unpaid">{formatMoney(historyTotals.totalDue - historyTotals.totalPaid)}</strong>
@@ -1623,6 +1617,13 @@ function FeesContent() {
         .period-label.inactive {
           color: var(--muted);
           font-weight: 400;
+        }
+        @media (max-width: 768px) {
+          .tab-btn {
+            padding: 10px 16px;
+            min-height: 40px;
+            white-space: nowrap;
+          }
         }
       `}</style>
     </>

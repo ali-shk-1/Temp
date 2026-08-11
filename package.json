@@ -26,6 +26,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
@@ -33,6 +34,8 @@
     "@types/nodemailer": "^6.4.19",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5"
   }
 }

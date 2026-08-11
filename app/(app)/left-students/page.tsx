@@ -328,12 +328,12 @@ function LeftStudentsContent() {
         <div className="page-header">
           <h1 className="page-title">Left Students</h1>
         </div>
-        <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card mb-4">
           <div className="filters">
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
               <input type="checkbox" checked={filterBoys} onChange={(e) => setFilterBoys(e.target.checked)} /> Boys
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
               <input type="checkbox" checked={filterGirls} onChange={(e) => setFilterGirls(e.target.checked)} /> Girls
             </label>
           </div>

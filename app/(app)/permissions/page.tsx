@@ -317,7 +317,7 @@ function PermissionsContent() {
     <>
       {/* Change Password Modal (admin-reset, for admin/principal/vice_principal/accountant/viewer accounts) */}
       <div className={`modal-overlay${pwModalOpen ? ' open' : ''}`}>
-        <div className="modal" style={{ maxWidth: 380 }}>
+        <div className="modal max-w-[380px]">
           <div className="modal-header">
             <h2 className="modal-title">{pwTitle}</h2>
             <button className="modal-close" onClick={closePwModal}>
@@ -359,7 +359,7 @@ function PermissionsContent() {
 
       {/* Change My (ali's own) Password Modal */}
       <div className={`modal-overlay${myPwModalOpen ? ' open' : ''}`}>
-        <div className="modal" style={{ maxWidth: 380 }}>
+        <div className="modal max-w-[380px]">
           <div className="modal-header">
             <h2 className="modal-title">Change My Password</h2>
             <button className="modal-close" onClick={closeMyPwModal}>
@@ -411,7 +411,7 @@ function PermissionsContent() {
 
       {/* Create Account Modal */}
       <div className={`modal-overlay${createModalOpen ? ' open' : ''}`}>
-        <div className="modal" style={{ maxWidth: 380 }}>
+        <div className="modal max-w-[380px]">
           <div className="modal-header">
             <h2 className="modal-title">Create Account — {createRoleLabel}</h2>
             <button className="modal-close" onClick={closeCreateModal}>
@@ -453,7 +453,7 @@ function PermissionsContent() {
 
       {/* Rename Username Modal */}
       <div className={`modal-overlay${renameModalOpen ? ' open' : ''}`}>
-        <div className="modal" style={{ maxWidth: 380 }}>
+        <div className="modal max-w-[380px]">
           <div className="modal-header">
             <h2 className="modal-title">Rename Account — {renameUsername}</h2>
             <button className="modal-close" onClick={closeRenameModal}>
@@ -488,11 +488,11 @@ function PermissionsContent() {
           <span className="ali-badge">Ali — Top Level Access</span>
         </div>
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div className="card mb-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <div style={{ fontWeight: 600, marginBottom: 2 }}>My Account</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Change the password for your own "ali" login.</div>
+              <div className="font-semibold mb-0.5">My Account</div>
+              <div className="text-muted text-xs">Change the password for your own "ali" login.</div>
             </div>
             <button className="btn btn-outline btn-sm" onClick={openMyPwModal}>
               Change My Password
@@ -500,8 +500,8 @@ function PermissionsContent() {
           </div>
         </div>
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
+        <div className="card mb-4">
+          <p className="text-muted text-[13px] leading-[1.6]">
             Toggle exactly what each account is allowed to do. Turning something off hides that button/action for
             every user with that role, immediately — no re-login required for pages loaded after the change. Ali
             always has every permission and cannot be restricted here. Each role has exactly one login account —
@@ -530,7 +530,7 @@ function PermissionsContent() {
                       <div className="perm-user-sub">{usernames}</div>
                     </div>
                     {firstUser ? (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           className="btn btn-outline btn-sm"
                           onClick={() => openRenameModal(firstUser.user_id, firstUser.username)}
@@ -563,7 +563,7 @@ function PermissionsContent() {
                   <div className="perm-section-title">Nav Pages Visible</div>
                   <div className="perm-pages-grid">
                     {(permData.pages || []).map((p) => (
-                      <div className="perm-row" style={{ borderBottom: 'none' }} key={p.key}>
+                      <div className="perm-row border-b-0" key={p.key}>
                         <span>{p.label}</span>
                         <label className="toggle-switch">
                           <input

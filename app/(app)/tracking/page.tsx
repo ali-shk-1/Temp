@@ -287,7 +287,7 @@ function TrackingContent() {
 
       {trackMode === 'fee' && (
       <>
-      <div className="page-header" style={{ marginTop: -4 }}>
+      <div className="page-header -mt-1">
         <span />
         <div className="period-switch">
           <span className={`period-label${isYear ? ' inactive' : ''}`}>Month</span>
@@ -299,26 +299,26 @@ function TrackingContent() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card mb-3">
         {!isYear ? (
           <div className="filters">
-            <label className="text-muted" style={{ fontSize: 12 }}>
+            <label className="text-muted text-xs">
               Month:
             </label>
             <input type="month" value={monthPicker} onChange={(e) => setMonthPicker(e.target.value)} />
             <button className="btn btn-outline btn-sm" onClick={setCurrentMonth}>
               This Month
             </button>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
               <input type="checkbox" checked={filterBoys} onChange={(e) => setFilterBoys(e.target.checked)} /> Boys
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
               <input type="checkbox" checked={filterGirls} onChange={(e) => setFilterGirls(e.target.checked)} /> Girls
             </label>
           </div>
         ) : (
           <div className="filters">
-            <label className="text-muted" style={{ fontSize: 12 }}>
+            <label className="text-muted text-xs">
               Year:
             </label>
             <select value={yearPicker} onChange={(e) => setYearPicker(e.target.value)}>
@@ -334,20 +334,20 @@ function TrackingContent() {
 
       {!isYear ? (
         <div>
-          <div className="card" style={{ marginBottom: 12 }}>
+          <div className="card mb-3">
             <div className="tracking-summary">
               <div className="block">
                 <div className="big amount-success">{formatMoney(totals.total_paid)}</div>
                 <div className="small">Fee Paid</div>
               </div>
               <div className="block">
-                <div className="big" style={{ fontSize: 16 }}>
+                <div className="big text-base">
                   {formatMoney(totals.total_due)}
                 </div>
                 <div className="small">Fee Due</div>
               </div>
               <div className="block">
-                <div className="big amount-danger" style={{ fontSize: 16 }}>
+                <div className="big amount-danger text-base">
                   {formatMoney(totals.total_balance)}
                 </div>
                 <div className="small">Balance Due</div>
@@ -483,9 +483,9 @@ function TrackingContent() {
 
       {trackMode === 'student' && (
         <div>
-          <div className="card" style={{ marginBottom: 12 }}>
+          <div className="card mb-3">
             <div className="filters student-track-filters">
-              <label className="text-muted" style={{ fontSize: 12 }}>
+              <label className="text-muted text-xs">
                 Session: Apr {STUDENT_TRACK_SESSION_START_YEAR} – Mar {STUDENT_TRACK_SESSION_START_YEAR + 1}
               </label>
               <input
@@ -493,40 +493,40 @@ function TrackingContent() {
                 placeholder="Roll No"
                 value={studentTrackSearch.roll_no}
                 onChange={(e) => setStudentTrackSearch({ ...studentTrackSearch, roll_no: e.target.value })}
-                style={{ width: 90 }}
+                className="w-[90px]"
               />
               <input
                 type="text"
                 placeholder="Name"
                 value={studentTrackSearch.name}
                 onChange={(e) => setStudentTrackSearch({ ...studentTrackSearch, name: e.target.value })}
-                style={{ width: 140 }}
+                className="w-[140px]"
               />
               <input
                 type="text"
                 placeholder="Father Name"
                 value={studentTrackSearch.father_name}
                 onChange={(e) => setStudentTrackSearch({ ...studentTrackSearch, father_name: e.target.value })}
-                style={{ width: 140 }}
+                className="w-[140px]"
               />
               <input
                 type="text"
                 placeholder="Class"
                 value={studentTrackSearch.class}
                 onChange={(e) => setStudentTrackSearch({ ...studentTrackSearch, class: e.target.value })}
-                style={{ width: 80 }}
+                className="w-20"
               />
               <input
                 type="text"
                 placeholder="Sec"
                 value={studentTrackSearch.section}
                 onChange={(e) => setStudentTrackSearch({ ...studentTrackSearch, section: e.target.value })}
-                style={{ width: 70 }}
+                className="w-[70px]"
               />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+              <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
                 <input type="checkbox" checked={studentTrackBoys} onChange={(e) => setStudentTrackBoys(e.target.checked)} /> Boys
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+              <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
                 <input type="checkbox" checked={studentTrackGirls} onChange={(e) => setStudentTrackGirls(e.target.checked)} /> Girls
               </label>
               {(studentTrackSearch.roll_no || studentTrackSearch.name || studentTrackSearch.father_name || studentTrackSearch.class || studentTrackSearch.section || studentTrackBoys || studentTrackGirls) && (

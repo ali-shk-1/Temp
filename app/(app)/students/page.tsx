@@ -355,7 +355,7 @@ function StudentsContent() {
                   value={form.roll_no}
                   onChange={(e) => setForm({ ...form, roll_no: e.target.value })}
                 />
-                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
+                <small className="text-secondary block mt-1">
                   If no roll number is entered, the system assigns the next available number within this class,
                   section, and gender (each combination has its own independent numbering).
                 </small>
@@ -369,7 +369,7 @@ function StudentsContent() {
                   value={form.class}
                   onChange={(e) => setForm({ ...form, class: e.target.value })}
                 />
-                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
+                <small className="text-secondary block mt-1">
                   Enter a valid class name. Only playgroup, nursery, prep, and 1 through 10 are accepted.
                 </small>
               </div>
@@ -382,7 +382,7 @@ function StudentsContent() {
                   value={form.section}
                   onChange={(e) => setForm({ ...form, section: e.target.value })}
                 />
-                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
+                <small className="text-secondary block mt-1">
                   Enter a single letter (A, B, C) or a stream name + letter (e.g. Csc-A, Bio-B, Arts-A).
                 </small>
               </div>
@@ -419,7 +419,7 @@ function StudentsContent() {
                   value={form.fee_start_month}
                   onChange={(e) => setForm({ ...form, fee_start_month: e.target.value })}
                 />
-                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
+                <small className="text-secondary block mt-1">
                   Use Month-YYYY to control when fee billing begins. Leave blank to use admission month.
                 </small>
               </div>
@@ -433,7 +433,7 @@ function StudentsContent() {
                   value={form.contact_1}
                   onChange={(e) => setForm({ ...form, contact_1: e.target.value })}
                 />
-                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
+                <small className="text-secondary block mt-1">
                   Mobile (03xx-xxxxxxx) or landline (051-xxxxxxx). Dashes optional — saved in this format automatically.
                 </small>
               </div>
@@ -471,7 +471,7 @@ function StudentsContent() {
               </div>
             </div>
             <div className="form-row">
-              <div className="form-group" style={{ width: '100%' }}>
+              <div className="form-group w-full">
                 <label>Upload Photo</label>
                 <input
                   ref={photoFileInputRef}
@@ -479,33 +479,17 @@ function StudentsContent() {
                   accept="image/*"
                   onChange={(e) => previewSelectedPhoto(e.target.files?.[0] || null)}
                 />
-                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
+                <small className="text-secondary block mt-1">
                   If you choose a file, it will be uploaded and used instead of the Photo URL.
                 </small>
               </div>
             </div>
-            <div className="form-row" style={{ display: photoPreview ? 'flex' : 'none' }}>
-              <div className="form-group" style={{ width: '100%' }}>
+            <div className={`form-row ${photoPreview ? 'flex' : 'hidden'}`}>
+              <div className="form-group w-full">
                 <label>Photo Preview</label>
-                <div
-                  style={{
-                    border: '1px solid #ccc',
-                    borderRadius: 8,
-                    overflow: 'hidden',
-                    width: 160,
-                    height: 160,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'var(--input-bg)',
-                  }}
-                >
+                <div className="border border-[#ccc] rounded-lg overflow-hidden w-40 h-40 flex items-center justify-center bg-input-bg">
                   {photoPreview && (
-                    <img
-                      src={photoPreview}
-                      alt="Photo preview"
-                      style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
-                    />
+                    <img src={photoPreview} alt="Photo preview" className="max-w-full max-h-full block" />
                   )}
                 </div>
               </div>
@@ -572,7 +556,7 @@ function StudentsContent() {
               <div>Father: {profileStudent?.father_name || '—'}</div>
               <div>Contact: {profileStudent?.contact_1 || '—'}</div>
               <div>Email: {profileStudent?.email || '—'}</div>
-              <div style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>Address: {profileStudent?.address || '—'}</div>
+              <div className="whitespace-pre-wrap mt-2">Address: {profileStudent?.address || '—'}</div>
             </div>
           </div>
           <div className="modal-footer">
@@ -586,16 +570,16 @@ function StudentsContent() {
       <div className="page">
         <div className="page-header">
           <h1 className="page-title">Students</h1>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="flex gap-2.5 items-center">
             {hasPerm('students.add') && (
-              <button className="btn btn-primary" onClick={() => openModal()}>
+              <button className="btn btn-primary transition-transform duration-150 active:scale-95" onClick={() => openModal()}>
                 + Add Student
               </button>
             )}
           </div>
         </div>
 
-        <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card mb-4">
           <div className="filters">
             <input
               className="search-box"
@@ -605,28 +589,26 @@ function StudentsContent() {
               onChange={(e) => setSearch(e.target.value)}
             />
             <input
-              className="search-box"
+              className="search-box max-w-[220px]"
               type="text"
               placeholder="Filter by class"
-              style={{ maxWidth: 220 }}
               value={filterClass}
               onChange={(e) => setFilterClass(e.target.value)}
             />
             <input
-              className="search-box"
+              className="search-box max-w-[160px]"
               type="text"
               placeholder="Filter by section"
-              style={{ maxWidth: 160 }}
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
               <input type="checkbox" checked={filterBoys} onChange={(e) => setFilterBoys(e.target.checked)} /> Boys
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            <label className="flex items-center gap-1 text-[13px] font-medium whitespace-nowrap">
               <input type="checkbox" checked={filterGirls} onChange={(e) => setFilterGirls(e.target.checked)} /> Girls
             </label>
-            <span className="text-secondary" style={{ fontSize: 14, fontWeight: 600, marginLeft: 'auto' }}>
+            <span className="text-secondary text-sm font-semibold ml-auto">
               {filtered.length} student{filtered.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -683,7 +665,7 @@ function StudentsContent() {
                       <td>{s.father_name || '—'}</td>
                       <td>{s.contact_1 || '—'}</td>
                       <td>{s.email || '—'}</td>
-                      <td className="text-muted" style={{ fontSize: 12 }}>
+                      <td className="text-muted text-xs">
                         {s.admission_date ? formatDate(s.admission_date) : '—'}
                       </td>
                       <td>

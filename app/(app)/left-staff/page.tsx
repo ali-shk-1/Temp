@@ -149,7 +149,7 @@ function LeftStaffContent() {
           </div>
           <form onSubmit={(e) => e.preventDefault()}>
             <div className="form-row">
-              <div className="form-group" style={{ gridColumn: '1/-1' }}>
+              <div className="form-group [grid-column:1/-1]">
                 <label>Full Name *</label>
                 <input
                   type="text"

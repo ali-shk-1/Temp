@@ -8,10 +8,10 @@
 'use client';
 
 export function initTheme(): 'light' | 'dark' {
-  let theme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-  if (!theme) {
-    theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
+  // App default is always light on first visit, regardless of OS/browser
+  // color-scheme preference. Once a user explicitly toggles the theme,
+  // that explicit choice (in localStorage) is respected on every later visit.
+  const theme = (localStorage.getItem('theme') as 'light' | 'dark' | null) || 'light';
   document.documentElement.setAttribute('data-theme', theme);
   return theme;
 }
@@ -25,7 +25,6 @@ export function toggleTheme(): void {
 
 /** Inline script source injected in <head> to set the theme before paint, matching the original's per-page inline snippet. */
 export const THEME_INIT_SCRIPT = `(function(){
-  var t = localStorage.getItem('theme');
-  if(!t){ t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+  var t = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', t);
 })();`;

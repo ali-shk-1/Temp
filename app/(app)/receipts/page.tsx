@@ -125,18 +125,18 @@ function ReceiptsContent() {
         <h1 className="page-title">Receipts</h1>
       </div>
 
-      <div className="text-muted" style={{ fontSize: 12, marginBottom: 12 }}>
+      <div className="text-muted text-xs mb-3">
         Every fee payment gets a sequential receipt number automatically. Use this list to confirm a printed or
         reported receipt number is legitimate — no receipt images are stored here, only the record details.
       </div>
 
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card mb-3">
         <div className="filters">
-          <label className="text-muted" style={{ fontSize: 12 }}>
+          <label className="text-muted text-xs">
             From:
           </label>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <label className="text-muted" style={{ fontSize: 12 }}>
+          <label className="text-muted text-xs">
             To:
           </label>
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
@@ -144,17 +144,16 @@ function ReceiptsContent() {
             Clear
           </button>
         </div>
-        <div className="filters" style={{ marginBottom: 0 }}>
+        <div className="filters mb-0">
           <input
             type="text"
             placeholder="Search receipt #, name, roll no., or class…"
-            className="mini-input"
-            style={{ flex: 1, minWidth: 220 }}
+            className="mini-input flex-1 min-w-[220px]"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           {loaded && !loadFailed && (
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+            <span className="text-[13px] font-semibold text-muted whitespace-nowrap">
               {filtered.length} receipt{filtered.length === 1 ? '' : 's'}
             </span>
           )}

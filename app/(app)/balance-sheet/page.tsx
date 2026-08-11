@@ -151,10 +151,10 @@ function BalanceSheetContent() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card mb-3">
         {!isYear ? (
           <div className="filters">
-            <label className="text-muted" style={{ fontSize: 12 }}>
+            <label className="text-muted text-xs">
               Month:
             </label>
             <input type="month" value={monthPicker} onChange={(e) => setMonthPicker(e.target.value)} />
@@ -164,7 +164,7 @@ function BalanceSheetContent() {
           </div>
         ) : (
           <div className="filters">
-            <label className="text-muted" style={{ fontSize: 12 }}>
+            <label className="text-muted text-xs">
               Year:
             </label>
             <select value={yearPicker} onChange={(e) => setYearPicker(e.target.value)}>
@@ -178,7 +178,7 @@ function BalanceSheetContent() {
         )}
       </div>
 
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card mb-3">
         <div className="bs-summary">
           <div className="block">
             <div className="big amount-success">{formatMoney(totals.fee)}</div>
@@ -201,7 +201,7 @@ function BalanceSheetContent() {
           <table>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left' }}>Date</th>
+                <th className="text-left">Date</th>
                 <th>Fee</th>
                 <th>Total Fee</th>
                 <th>Expense</th>
@@ -232,9 +232,9 @@ function BalanceSheetContent() {
               ) : (
                 rows.map((r, i) => (
                   <tr key={i} className={r.sunday ? 'is-sunday' : ''}>
-                    <td style={{ textAlign: 'left' }}>
+                    <td className="text-left">
                       {r.label}
-                      {r.sunday && <span style={{ fontSize: 11 }}> (Sun)</span>}
+                      {r.sunday && <span className="text-[11px]"> (Sun)</span>}
                     </td>
                     <td className={Number(r.fee) > 0 ? 'amount-success' : ''}>{fmtCell(r.fee)}</td>
                     <td>{fmtCell(r.total_fee)}</td>

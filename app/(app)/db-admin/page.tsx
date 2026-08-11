@@ -238,7 +238,7 @@ function DbAdminContent() {
               </thead>
               <tbody>
                 {tables.map((t) => (
-                  <tr key={t.table} onClick={() => openTable(t.table)} style={{ cursor: 'pointer' }}>
+                  <tr key={t.table} onClick={() => openTable(t.table)} className="cursor-pointer">
                     <td>{t.label}</td>
                     <td>
                       <code>{t.table}</code>
@@ -254,14 +254,14 @@ function DbAdminContent() {
 
       {view === 'browse' && (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+          <div className="flex justify-between items-center mb-3 flex-wrap gap-2.5">
             <button className="btn-secondary" onClick={backToList}>
               ← All tables
             </button>
-            <h2 style={{ margin: 0 }}>
+            <h2 className="m-0">
               {data?.label || activeTable} <code>({activeTable})</code>
             </h2>
-            <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: 8 }}>
+            <form onSubmit={handleSearchSubmit} className="flex gap-2">
               <input
                 className="search-box"
                 placeholder="Search…"
@@ -278,7 +278,7 @@ function DbAdminContent() {
             <p>Loading rows…</p>
           ) : (
             <>
-              <div style={{ overflowX: 'auto' }}>
+              <div className="overflow-x-auto">
                 <table>
                   <thead>
                     <tr>
@@ -286,7 +286,7 @@ function DbAdminContent() {
                         <th
                           key={col.name}
                           onClick={() => toggleSort(col.name)}
-                          style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          className="cursor-pointer whitespace-nowrap"
                           title={col.type}
                         >
                           {col.name}
@@ -301,7 +301,7 @@ function DbAdminContent() {
                     {data.rows.map((row) => (
                       <tr key={row.__pk}>
                         {data.columns.map((col) => (
-                          <td key={col.name} style={{ whiteSpace: 'nowrap', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <td key={col.name} className="whitespace-nowrap max-w-[260px] overflow-hidden text-ellipsis">
                             {row[col.name] === null || row[col.name] === undefined ? (
                               <span className="text-muted">—</span>
                             ) : (
@@ -309,7 +309,7 @@ function DbAdminContent() {
                             )}
                           </td>
                         ))}
-                        <td style={{ whiteSpace: 'nowrap' }}>
+                        <td className="whitespace-nowrap">
                           <button className="btn-secondary" onClick={() => openEdit(row)}>
                             Edit
                           </button>{' '}
@@ -328,11 +328,11 @@ function DbAdminContent() {
                 </table>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+              <div className="flex justify-between items-center mt-3">
                 <span>
                   Page {data.page} of {data.totalPages} · {data.total.toLocaleString()} rows
                 </span>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className="flex gap-2">
                   <button className="btn-secondary" disabled={page <= 1} onClick={() => changePage(page - 1)}>
                     Prev
                   </button>
@@ -355,11 +355,11 @@ function DbAdminContent() {
                 ×
               </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '60vh', overflowY: 'auto' }}>
+            <div className="flex flex-col gap-2.5 max-h-[60vh] overflow-y-auto">
               {data.columns
                 .filter((c) => !c.isReadOnly)
                 .map((col) => (
-                  <label key={col.name} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label key={col.name} className="flex flex-col gap-1">
                     <span>
                       {col.name}
                       {col.isRequired ? ' *' : ''} <small className="text-muted">{col.type}</small>
@@ -372,7 +372,7 @@ function DbAdminContent() {
                   </label>
                 ))}
               {data.columns.filter((c) => c.isReadOnly).length > 0 && (
-                <div className="text-muted" style={{ fontSize: 13 }}>
+                <div className="text-muted text-[13px]">
                   Read-only: {data.columns.filter((c) => c.isReadOnly).map((c) => c.name).join(', ')}
                 </div>
               )}
