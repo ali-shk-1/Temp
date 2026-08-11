@@ -1,0 +1,38 @@
+{
+  "name": "school-nextjs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "seed": "node scripts/seed.js",
+    "create:principal": "node scripts/create-principal.js",
+    "create:vice-principal": "node scripts/create-vice-principal.js",
+    "create:accountant": "node scripts/create-accountant.js",
+    "create:ali-viewer": "node scripts/create-ali-viewer.js",
+    "reset:admin": "node scripts/reset-admin.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.3",
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "next": "16.3.0",
+    "nodemailer": "^9.0.5",
+    "prisma": "^6.16.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^20",
+    "@types/nodemailer": "^6.4.19",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}
