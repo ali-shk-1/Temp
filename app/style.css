@@ -101,9 +101,10 @@ body {
 .card {
   background: #fff;
   border: 1px solid #ddd;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 20px;
   margin-bottom: 20px;
+  box-shadow: var(--shadow-sm, none);
 }
 
 /* STAT CARDS */
@@ -116,10 +117,13 @@ body {
 .stat-card {
   background: #fff;
   border: 1px solid #ddd;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 16px;
   text-align: center;
+  box-shadow: var(--shadow-sm, none);
+  transition: box-shadow .15s, transform .15s;
 }
+.stat-card:hover { box-shadow: var(--shadow-md, none); transform: translateY(-1px); }
 .stat-card .label { font-size: 13px; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 .stat-card .value { font-size: 28px; font-weight: 700; color: #1a1a2e; }
 .stat-card .value .currency { font-size: 16px; font-weight: 600; }
@@ -258,10 +262,8 @@ tr:hover td { background: #fafafa; }
   font-size: 11px;
   font-weight: 600;
 }
-.badge-success { background: #e8f5e9; color: #2d7a4f; }
-.badge-danger  { background: #fdecea; color: #c0392b; }
-.badge-warning { background: #fef9e7; color: #9a7d0a; }
-.badge-info    { background: #e8f4fd; color: #1a5276; }
+/* colors moved to the token-driven definitions in the THEME VARIABLES
+   section below, so light and dark mode share one source of truth */
 
 /* TOAST */
 .toast {
@@ -365,7 +367,7 @@ tr:hover td { background: #fafafa; }
   margin-top: 6px;
 }
 .login-btn:hover { background: #2a2a4e; }
-.login-error { color: #c0392b; font-size: 13px; margin-top: 10px; text-align: center; }
+.login-error { font-size: 13px; margin-top: 10px; text-align: center; }
 
 /* LOADING */
 .loading { text-align: center; color: #888; padding: 30px; }
@@ -380,21 +382,51 @@ tr:hover td { background: #fafafa; }
 }
 
 /* FEE SPECIFIC */
-.fee-paid   { color: #2d7a4f; font-weight: 600; }
-.fee-unpaid { color: #c0392b; font-weight: 600; }
-.fee-partial{ color: #d68910; font-weight: 600; }
-/* ============ THEME VARIABLES ============ */
+.fee-paid   { font-weight: 600; }
+.fee-unpaid { font-weight: 600; }
+.fee-partial{ font-weight: 600; }
+/* ============ THEME VARIABLES ============
+   Full semantic token set. Every color used anywhere in the app should
+   resolve to one of these — no component should hardcode a hex value.
+   Dark mode is a deliberately separate palette (not just inverted/
+   darkened light-mode colors): surfaces step up in lightness with
+   elevation, status colors are desaturated slightly and brightened for
+   contrast against a dark backdrop, and shadows are near-black instead
+   of the light-mode's soft grey so cards still read as "lifted". */
 :root{
   --bg:#f5f5f5; --text:#222; --card-bg:#fff; --border:#ddd;
   --nav-bg:#1a1a2e; --nav-text:#fff; --nav-link:#ccc;
   --th-bg:#f0f0f0; --th-text:#555; --td-text:#333; --row-hover:#fafafa;
   --input-bg:#fff; --input-border:#ccc; --muted:#888; --font-scale:1;
+  --panel:transparent; --panel-2:rgba(127,127,127,0.08);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.06); --shadow-md:0 4px 10px rgba(0,0,0,.1);
+  --shadow-lg:0 10px 30px rgba(0,0,0,.14);
+
+  /* status colors (light) */
+  --success-bg:#e6f4ea; --success-text:#2d7a4f; --success-fg:#2d7a4f;
+  --danger-bg:#fce8e6;  --danger-text:#c0392b;  --danger-fg:#c0392b;
+  --warning-bg:#fdf3d9; --warning-text:#8a6d1a; --warning-fg:#d68910;
+  --info-bg:#e3f0fc;    --info-text:#1c5c96;    --info-fg:#1c5c96;
+  --accent:#4f46e5; --accent-hover:#4338ca; --focus-ring:rgba(79,70,229,.35);
+  --overlay:rgba(0,0,0,.4);
 }
 [data-theme="dark"]{
   --bg:#12141c; --text:#e8e8ec; --card-bg:#1c1f2b; --border:#333748;
   --nav-bg:#0d0e16; --nav-text:#fff; --nav-link:#b8bcd0;
   --th-bg:#232636; --th-text:#c3c6d6; --td-text:#e0e2ec; --row-hover:#262a3a;
   --input-bg:#232636; --input-border:#3a3f55; --muted:#9498ad; --font-scale:1.03;
+  --panel:rgba(255,255,255,0.03); --panel-2:rgba(255,255,255,0.06);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow-md:0 4px 14px rgba(0,0,0,.45);
+  --shadow-lg:0 14px 36px rgba(0,0,0,.55);
+
+  /* status colors (dark) — brightened + desaturated for legibility on
+     dark surfaces, not just a lighter version of the light-mode hue */
+  --success-bg:#1c3b28; --success-text:#7be3a0; --success-fg:#5fd88f;
+  --danger-bg:#3d201d;  --danger-text:#ff9c8f;  --danger-fg:#ff8a7a;
+  --warning-bg:#3a3312; --warning-text:#f0d878; --warning-fg:#f0c060;
+  --info-bg:#1b2e40;    --info-text:#8fc4f5;    --info-fg:#7ab8f5;
+  --accent:#6c7bff; --accent-hover:#8592ff; --focus-ring:rgba(108,123,255,.4);
+  --overlay:rgba(0,0,0,.6);
 }
 body{ background:var(--bg); color:var(--text); font-size:calc(14px * var(--font-scale)); transition:background .2s; }
 /* Color (not background) transitions on bold/large text cause a visible
@@ -428,18 +460,17 @@ tr:hover td{ background:var(--row-hover); }
 .empty,.loading,.login-sub,.stat-card .sub{ color:var(--muted); }
 #countLabel{ color:var(--muted) !important; }
 
-/* Badges and fee-status text use fixed light-mode colors (light pastel
-   background + dark text) that read fine on a white page but turn muddy
-   and low-contrast once the page background goes dark. Brighten them for
-   dark mode specifically rather than changing the light-mode palette. */
-[data-theme="dark"] .badge-success{ background:#1c3b28; color:#7be3a0; }
-[data-theme="dark"] .badge-danger { background:#3d201d; color:#ff9c8f; }
-[data-theme="dark"] .badge-warning{ background:#3a3312; color:#f0d878; }
-[data-theme="dark"] .badge-info   { background:#1b2e40; color:#8fc4f5; }
-[data-theme="dark"] .fee-paid   { color:#5fd88f; }
-[data-theme="dark"] .fee-unpaid { color:#ff8a7a; }
-[data-theme="dark"] .fee-partial{ color:#f0c060; }
-[data-theme="dark"] .login-error{ color:#ff8a7a; }
+/* Badges and fee-status text now read from status tokens directly, so
+   light/dark both derive from the same semantic source instead of dark
+   mode being a patch of manually rebalanced hexes. */
+.badge-success{ background:var(--success-bg); color:var(--success-text); }
+.badge-danger { background:var(--danger-bg);  color:var(--danger-text); }
+.badge-warning{ background:var(--warning-bg); color:var(--warning-text); }
+.badge-info   { background:var(--info-bg);    color:var(--info-text); }
+.fee-paid   { color:var(--success-fg); }
+.fee-unpaid { color:var(--danger-fg); }
+.fee-partial{ color:var(--warning-fg); }
+.login-error{ color:var(--danger-fg); }
 
 /* Theme toggle button */
 .theme-toggle{
@@ -477,10 +508,10 @@ tr:hover td{ background:var(--row-hover); }
 }
 [data-theme="dark"] .popup-option:hover{ background:var(--row-hover); }
 .notice-box{
-  display:none; background:#fff8e1; border:1px solid #ffe082; color:#5a4400;
-  padding:10px; border-radius:4px; font-size:12px; margin-bottom:10px;
+  display:none; background:var(--warning-bg); border:1px solid var(--warning-fg);
+  color:var(--warning-text); padding:10px; border-radius:4px; font-size:12px;
+  margin-bottom:10px;
 }
-[data-theme="dark"] .notice-box{ background:#3a3312; border-color:#6b5b16; color:#f0d878; }
 .grid-2, .grid-2-1{ display:grid; gap:16px; margin-bottom:20px; }
 .grid-2{ grid-template-columns:1fr 1fr; }
 .grid-2-1{ grid-template-columns:2fr 1fr; align-items:start; margin-bottom:0; }
@@ -489,39 +520,52 @@ tr:hover td{ background:var(--row-hover); }
 .list-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 12px; }
 .list-row + .list-row{ border-top:1px solid var(--border); }
 .progress-track{ background:var(--border); border-radius:3px; height:6px; }
-.progress-fill{ background:var(--nav-bg); height:6px; border-radius:3px; }
-[data-theme="dark"] .progress-fill{ background:#6c7bff; }
+.progress-fill{ background:var(--accent); height:6px; border-radius:3px; }
 .ellipsis-cell{ max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.amount-danger{ font-weight:600; color:#c0392b; }
-[data-theme="dark"] .amount-danger{ color:#ff8a7a; }
-.amount-success{ font-weight:600; color:#2d7a4f; }
-[data-theme="dark"] .amount-success{ color:#5fd88f; }
+.amount-danger{ font-weight:600; color:var(--danger-fg); }
+.amount-success{ font-weight:600; color:var(--success-fg); }
 /* .stat-card .value (2 classes) has higher specificity than .amount-danger/
    .amount-success alone (1 class), so those colors would silently lose to
    .stat-card .value's color:var(--text) when combined on a stat card
    (e.g. Dashboard's Overdue Months / Balance cards). Match specificity
    explicitly so the semantic color actually applies there too. */
-.stat-card .value.amount-danger{ color:#c0392b; }
-[data-theme="dark"] .stat-card .value.amount-danger{ color:#ff8a7a; }
-.stat-card .value.amount-success{ color:#2d7a4f; }
-[data-theme="dark"] .stat-card .value.amount-success{ color:#5fd88f; }
+.stat-card .value.amount-danger{ color:var(--danger-fg); }
+.stat-card .value.amount-success{ color:var(--success-fg); }
 
-/* Catch-all: kill leftover hardcoded light-mode inline colors in dark mode */
-[data-theme="dark"] [style*="color:#888"],
-[data-theme="dark"] [style*="color: #888"],
-[data-theme="dark"] [style*="color:#666"],
-[data-theme="dark"] [style*="color: #666"],
-[data-theme="dark"] [style*="color:#999"],
-[data-theme="dark"] [style*="color: #999"]{ color:var(--muted) !important; }
-[data-theme="dark"] [style*="color:#444"],
-[data-theme="dark"] [style*="color:#555"],
-[data-theme="dark"] [style*="color: #555"]{ color:var(--text) !important; }
-[data-theme="dark"] [style*="background:#fff"],
-[data-theme="dark"] [style*="background: #fff"],
-[data-theme="dark"] [style*="background:#eee"]{ background:var(--card-bg) !important; }
-[data-theme="dark"] [style*="border:1px solid #ccc"],
-[data-theme="dark"] [style*="border:1px solid #eee"],
-[data-theme="dark"] [style*="border:1px solid #ddd"]{ border-color:var(--input-border) !important; }
+/* Small text-color/background/border utility classes so components use
+   real classes instead of hardcoded inline hex — this is what makes
+   dark mode work for these everywhere without a selector-matching hack. */
+.text-secondary{ color:var(--th-text); }
+.border-subtle{ border:1px solid var(--border); }
+.border-input{ border:1px solid var(--input-border); }
+.bg-card{ background:var(--card-bg); }
+.shadow-card{ box-shadow:var(--shadow-md); }
+
+/* Accessible focus ring — was entirely missing before, relying on
+   browser defaults that look inconsistent across the dark/light
+   surfaces used here. */
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ============ SKELETON LOADING ============ */
+.skeleton{
+  position: relative; overflow: hidden; background: var(--th-bg);
+  border-radius: 4px; color: transparent !important;
+}
+.skeleton::after{
+  content:""; position:absolute; inset:0;
+  background: linear-gradient(90deg, transparent, var(--row-hover), transparent);
+  transform: translateX(-100%);
+  animation: skeleton-sweep 1.3s ease-in-out infinite;
+}
+@keyframes skeleton-sweep{ 100%{ transform: translateX(100%); } }
+.skeleton-text{ height: 14px; width: 100%; margin-bottom: 6px; }
+.skeleton-title{ height: 20px; width: 60%; margin-bottom: 10px; }
+.skeleton-card{ height: 84px; border-radius: 8px; }
+.skeleton-row td{ padding: 10px 12px; }
 
 /* ============ MOBILE RESPONSIVE ============ */
 @media (max-width: 768px){
@@ -632,4 +676,35 @@ tr:hover td{ background:var(--row-hover); }
 .ali-badge{
   display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase;
   letter-spacing:0.4px; background:#4f46e5; color:#fff; padding:2px 8px; border-radius:20px;
+}
+/* ── Smooth authenticated-shell transitions (perf/UX pass) ───────────
+   Used by app/(app)/layout.tsx. The shell (NavBar + auth guard) now
+   mounts once per session instead of once per navigation, so this
+   loading bar is only ever seen on first load / hard refresh, never
+   on ordinary tab switching. Page content fades in instead of
+   snapping, so switching tabs never reads as a white "blink". */
+.app-shell-loading{
+  position:fixed; inset:0; display:flex; align-items:flex-start; justify-content:center;
+  background:var(--bg); z-index:9999;
+}
+.app-shell-loading-bar{
+  margin-top:0; width:100%; height:3px; overflow:hidden; position:relative;
+  background:transparent;
+}
+.app-shell-loading-bar::after{
+  content:""; position:absolute; top:0; left:-30%; width:30%; height:100%;
+  background:linear-gradient(90deg, transparent, #4f46e5, transparent);
+  animation:shell-loading-sweep 1s ease-in-out infinite;
+}
+@keyframes shell-loading-sweep{
+  0%{ left:-30%; }
+  100%{ left:100%; }
+}
+
+.app-page-transition{
+  animation:app-page-fade-in .18s ease-out;
+}
+@keyframes app-page-fade-in{
+  from{ opacity:0; transform:translateY(4px); }
+  to{ opacity:1; transform:translateY(0); }
 }

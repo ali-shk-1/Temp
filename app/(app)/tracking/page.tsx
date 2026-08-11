@@ -8,8 +8,9 @@
  * table straight from the API.
  */
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import AuthedPage from '@/components/AuthedPage';
+import Avatar from '@/components/Avatar';
 import { api, dbg, formatMoney } from '@/lib/api-client';
 import { loadMyPermissions, refreshMyPermissions } from '@/lib/permissions-client';
 import { useLiveUpdates } from '@/lib/useLiveUpdates';
@@ -25,6 +26,7 @@ interface TrackingStudent {
   amount_due?: number | string;
   amount_paid?: number | string;
   gender?: 'male' | 'female' | null;
+  photo_url?: string | null;
 }
 
 interface YearlyRow {
@@ -50,6 +52,7 @@ interface StudentYearRow {
   section?: string;
   gender?: 'male' | 'female' | null;
   months: Record<string, StudentYearMonthCell>;
+  photo_url?: string | null;
 }
 
 const MONTH_NAMES = [
@@ -84,7 +87,7 @@ export default function TrackingPage() {
 function TrackingContent() {
   const [permTick, setPermTick] = useState(0);
   const [isYear, setIsYear] = useState(false);
-  const [trackMode, setTrackMode] = useState<'fee' | 'student'>('fee');
+  const [trackMode, setTrackMode] = useState<'fee' | 'student'>('student');
 
   const STUDENT_TRACK_SESSION_START_YEAR = 2026;
   const [studentYearRows, setStudentYearRows] = useState<StudentYearRow[]>([]);
@@ -227,12 +230,19 @@ function TrackingContent() {
     return `Students Who Paid Their Fee In ${MONTH_NAMES[Number(m) - 1]} ${y}`;
   }, [monthPicker]);
 
+  // Deferred: the Student Yearly Track grid is by far the heaviest
+  // table in the app (12 months x 3 sub-columns per student, plus a
+  // frozen-column layout), so this is the table where un-deferred
+  // typing would feel the most "stuck". Deferring keeps every
+  // keystroke in the filter boxes instant.
+  const deferredStudentTrackSearch = useDeferredValue(studentTrackSearch);
+
   const filteredStudentYearRows = useMemo(() => {
-    const roll = studentTrackSearch.roll_no.trim().toLowerCase();
-    const name = studentTrackSearch.name.trim().toLowerCase();
-    const father = studentTrackSearch.father_name.trim().toLowerCase();
-    const cls = studentTrackSearch.class.trim().toLowerCase();
-    const sec = studentTrackSearch.section.trim().toLowerCase();
+    const roll = deferredStudentTrackSearch.roll_no.trim().toLowerCase();
+    const name = deferredStudentTrackSearch.name.trim().toLowerCase();
+    const father = deferredStudentTrackSearch.father_name.trim().toLowerCase();
+    const cls = deferredStudentTrackSearch.class.trim().toLowerCase();
+    const sec = deferredStudentTrackSearch.section.trim().toLowerCase();
     const wantBoys = studentTrackBoys,
       wantGirls = studentTrackGirls;
     const genderFilterActive = wantBoys !== wantGirls;
@@ -247,7 +257,7 @@ function TrackingContent() {
       if (genderFilterActive && !((wantBoys && s.gender === 'male') || (wantGirls && s.gender === 'female'))) return false;
       return true;
     });
-  }, [studentYearRows, studentTrackSearch, studentTrackBoys, studentTrackGirls]);
+  }, [studentYearRows, deferredStudentTrackSearch, studentTrackBoys, studentTrackGirls]);
 
   function setCurrentMonth() {
     setMonthPicker(currentMonthStr);
@@ -352,6 +362,7 @@ function TrackingContent() {
                 <thead>
                   <tr>
                     <th>#</th>
+                    <th>Photo</th>
                     <th>Roll No</th>
                     <th>Full Name</th>
                     <th>Class</th>
@@ -366,19 +377,19 @@ function TrackingContent() {
                 <tbody>
                   {!monthLoaded ? (
                     <tr>
-                      <td colSpan={10} className="loading">
+                      <td colSpan={11} className="loading">
                         Loading…
                       </td>
                     </tr>
                   ) : monthLoadFailed ? (
                     <tr>
-                      <td colSpan={10} className="empty">
+                      <td colSpan={11} className="empty">
                         Failed to load.
                       </td>
                     </tr>
                   ) : filteredStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="empty">
+                      <td colSpan={11} className="empty">
                         No fee payments recorded for this month.
                       </td>
                     </tr>
@@ -388,6 +399,9 @@ function TrackingContent() {
                       return (
                         <tr key={i}>
                           <td>{i + 1}</td>
+                          <td>
+                            <Avatar src={s.photo_url} name={`${s.first_name || ''} ${s.last_name || ''}`} />
+                          </td>
                           <td>{s.roll_no ?? '—'}</td>
                           <td>
                             {s.first_name || ''} {s.last_name || ''}
@@ -537,11 +551,12 @@ function TrackingContent() {
                 <thead>
                   <tr>
                     <th rowSpan={2} className="frozen-col frozen-col-1">Sr #</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-2">Roll No</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-3">Name</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-4">Father Name</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-5">Class</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-6">Sec</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-2">Photo</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-3">Roll No</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-4">Name</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-5">Father Name</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-6">Class</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-7">Sec</th>
                     {studentYearMonthKeys.map((key) => (
                       <th key={key} colSpan={3} className="month-group-head">
                         {monthKeyLabel(key)}
@@ -561,19 +576,19 @@ function TrackingContent() {
                 <tbody>
                   {!studentYearLoaded ? (
                     <tr>
-                      <td colSpan={6 + studentYearMonthKeys.length * 3} className="loading">
+                      <td colSpan={7 + studentYearMonthKeys.length * 3} className="loading">
                         Loading…
                       </td>
                     </tr>
                   ) : studentYearLoadFailed ? (
                     <tr>
-                      <td colSpan={6 + studentYearMonthKeys.length * 3} className="empty">
+                      <td colSpan={7 + studentYearMonthKeys.length * 3} className="empty">
                         Failed to load.
                       </td>
                     </tr>
                   ) : filteredStudentYearRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6 + studentYearMonthKeys.length * 3} className="empty">
+                      <td colSpan={7 + studentYearMonthKeys.length * 3} className="empty">
                         No students found.
                       </td>
                     </tr>
@@ -581,13 +596,16 @@ function TrackingContent() {
                     filteredStudentYearRows.map((s, i) => (
                       <tr key={s.student_id}>
                         <td className="frozen-col frozen-col-1">{i + 1}</td>
-                        <td className="frozen-col frozen-col-2">{s.roll_no ?? '—'}</td>
-                        <td className="frozen-col frozen-col-3">
+                        <td className="frozen-col frozen-col-2">
+                          <Avatar src={s.photo_url} name={`${s.first_name || ''} ${s.last_name || ''}`} size={28} />
+                        </td>
+                        <td className="frozen-col frozen-col-3">{s.roll_no ?? '—'}</td>
+                        <td className="frozen-col frozen-col-4">
                           {s.first_name || ''} {s.last_name || ''}
                         </td>
-                        <td className="frozen-col frozen-col-4">{s.father_name || '—'}</td>
-                        <td className="frozen-col frozen-col-5">{s.class ?? '—'}</td>
-                        <td className="frozen-col frozen-col-6">{s.section ?? '—'}</td>
+                        <td className="frozen-col frozen-col-5">{s.father_name || '—'}</td>
+                        <td className="frozen-col frozen-col-6">{s.class ?? '—'}</td>
+                        <td className="frozen-col frozen-col-7">{s.section ?? '—'}</td>
                         {studentYearMonthKeys.map((key) => {
                           const cell = s.months[key] || { due: 0, paid: 0, date: null };
                           const isShort = cell.due > 0 && cell.paid < cell.due;
@@ -683,12 +701,13 @@ function TrackingContent() {
           background: var(--card-bg-alt, #f7f7f9);
         }
         .student-year-table .frozen-col-1 { left: 0; min-width: 40px; }
-        .student-year-table .frozen-col-2 { left: 40px; min-width: 70px; }
-        .student-year-table .frozen-col-3 { left: 110px; min-width: 150px; text-align: left; }
-        .student-year-table .frozen-col-4 { left: 260px; min-width: 150px; text-align: left; }
-        .student-year-table .frozen-col-5 { left: 410px; min-width: 60px; }
-        .student-year-table .frozen-col-6 {
-          left: 470px;
+        .student-year-table .frozen-col-2 { left: 40px; min-width: 44px; }
+        .student-year-table .frozen-col-3 { left: 84px; min-width: 70px; }
+        .student-year-table .frozen-col-4 { left: 154px; min-width: 150px; text-align: left; }
+        .student-year-table .frozen-col-5 { left: 304px; min-width: 150px; text-align: left; }
+        .student-year-table .frozen-col-6 { left: 454px; min-width: 60px; }
+        .student-year-table .frozen-col-7 {
+          left: 514px;
           min-width: 50px;
           border-right: 2px solid var(--border, #e2e2e2);
         }

@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import AuthedPage from '@/components/AuthedPage';
+import Avatar from '@/components/Avatar';
 import { api, formatDate, normalizeList } from '@/lib/api-client';
 import { showToast } from '@/lib/toast';
 import { hasPerm, loadMyPermissions, refreshMyPermissions } from '@/lib/permissions-client';
@@ -29,6 +30,7 @@ interface LeftStudent {
   admission_date: string | null;
   left_date: string | null;
   left_reason: string | null;
+  photo_url?: string | null;
 }
 
 const emptyForm = {
@@ -342,6 +344,7 @@ function LeftStudentsContent() {
               <thead>
                 <tr>
                   <th>#</th>
+                  <th>Photo</th>
                   <th>Roll No</th>
                   <th>Name</th>
                   <th>Class</th>
@@ -356,19 +359,19 @@ function LeftStudentsContent() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="loading">
+                    <td colSpan={11} className="loading">
                       Loading…
                     </td>
                   </tr>
                 ) : loadFailed ? (
                   <tr>
-                    <td colSpan={10} className="empty">
+                    <td colSpan={11} className="empty">
                       Failed to load left students.
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="empty">
+                    <td colSpan={11} className="empty">
                       No left students found.
                     </td>
                   </tr>
@@ -376,6 +379,9 @@ function LeftStudentsContent() {
                   filtered.map((s, i) => (
                     <tr key={s.left_student_id}>
                       <td>{i + 1}</td>
+                      <td>
+                        <Avatar src={s.photo_url} name={`${s.first_name} ${s.last_name || ''}`} />
+                      </td>
                       <td>{s.roll_no || '—'}</td>
                       <td>
                         {s.first_name} {s.last_name}

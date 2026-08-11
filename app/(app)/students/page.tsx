@@ -7,8 +7,9 @@
  * multipart contract), same filters, same leave/delete confirm() flows.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useDeferredValue, useMemo, useRef, useState } from 'react';
 import AuthedPage from '@/components/AuthedPage';
+import Avatar from '@/components/Avatar';
 import { api, apiForm, dbg, formatDate, normalizeList } from '@/lib/api-client';
 import { showToast } from '@/lib/toast';
 import { hasPerm, loadMyPermissions, refreshMyPermissions } from '@/lib/permissions-client';
@@ -115,10 +116,20 @@ function StudentsContent() {
     'permissions.changed': () => refreshMyPermissions(() => setPermTick((n) => n + 1)),
   });
 
+  // Deferred copies of the text filters: typing updates the input
+  // instantly (search/filterClass/filterSection stay in sync with each
+  // keystroke so the box never feels laggy), while the expensive
+  // filter+re-render of the whole table trails a frame behind via
+  // React's scheduler. This is what stops "type -> table freezes for a
+  // moment -> results appear" — the input itself never blocks.
+  const deferredSearch = useDeferredValue(search);
+  const deferredFilterClass = useDeferredValue(filterClass);
+  const deferredFilterSection = useDeferredValue(filterSection);
+
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    const clsQ = filterClass.trim().toLowerCase();
-    const secQ = filterSection.trim().toLowerCase();
+    const q = deferredSearch.toLowerCase();
+    const clsQ = deferredFilterClass.trim().toLowerCase();
+    const secQ = deferredFilterSection.trim().toLowerCase();
     const wantBoys = filterBoys;
     const wantGirls = filterGirls;
     const genderNarrowed = wantBoys !== wantGirls;
@@ -131,7 +142,7 @@ function StudentsContent() {
         (!genderNarrowed || (wantBoys && s.gender === 'male') || (wantGirls && s.gender === 'female'))
       );
     });
-  }, [allStudents, search, filterClass, filterSection, filterBoys, filterGirls]);
+  }, [allStudents, deferredSearch, deferredFilterClass, deferredFilterSection, filterBoys, filterGirls]);
 
   function setPhotoPreviewFor(src: string) {
     setPhotoPreview(src);
@@ -344,7 +355,7 @@ function StudentsContent() {
                   value={form.roll_no}
                   onChange={(e) => setForm({ ...form, roll_no: e.target.value })}
                 />
-                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
                   If no roll number is entered, the system assigns the next available number within this class,
                   section, and gender (each combination has its own independent numbering).
                 </small>
@@ -358,7 +369,7 @@ function StudentsContent() {
                   value={form.class}
                   onChange={(e) => setForm({ ...form, class: e.target.value })}
                 />
-                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
                   Enter a valid class name. Only playgroup, nursery, prep, and 1 through 10 are accepted.
                 </small>
               </div>
@@ -371,7 +382,7 @@ function StudentsContent() {
                   value={form.section}
                   onChange={(e) => setForm({ ...form, section: e.target.value })}
                 />
-                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
                   Enter a single letter (A, B, C) or a stream name + letter (e.g. Csc-A, Bio-B, Arts-A).
                 </small>
               </div>
@@ -408,7 +419,7 @@ function StudentsContent() {
                   value={form.fee_start_month}
                   onChange={(e) => setForm({ ...form, fee_start_month: e.target.value })}
                 />
-                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
                   Use Month-YYYY to control when fee billing begins. Leave blank to use admission month.
                 </small>
               </div>
@@ -422,7 +433,7 @@ function StudentsContent() {
                   value={form.contact_1}
                   onChange={(e) => setForm({ ...form, contact_1: e.target.value })}
                 />
-                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
                   Mobile (03xx-xxxxxxx) or landline (051-xxxxxxx). Dashes optional — saved in this format automatically.
                 </small>
               </div>
@@ -468,7 +479,7 @@ function StudentsContent() {
                   accept="image/*"
                   onChange={(e) => previewSelectedPhoto(e.target.files?.[0] || null)}
                 />
-                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
                   If you choose a file, it will be uploaded and used instead of the Photo URL.
                 </small>
               </div>
@@ -615,7 +626,7 @@ function StudentsContent() {
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
               <input type="checkbox" checked={filterGirls} onChange={(e) => setFilterGirls(e.target.checked)} /> Girls
             </label>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#555', marginLeft: 'auto' }}>
+            <span className="text-secondary" style={{ fontSize: 14, fontWeight: 600, marginLeft: 'auto' }}>
               {filtered.length} student{filtered.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -627,6 +638,7 @@ function StudentsContent() {
               <thead>
                 <tr>
                   <th>#</th>
+                  <th>Photo</th>
                   <th>Roll No</th>
                   <th>Name</th>
                   <th>Class</th>
@@ -642,13 +654,13 @@ function StudentsContent() {
               <tbody>
                 {loadFailed ? (
                   <tr>
-                    <td colSpan={11} className="empty">
+                    <td colSpan={12} className="empty">
                       Failed to load students.
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="empty">
+                    <td colSpan={12} className="empty">
                       No students found.
                     </td>
                   </tr>
@@ -656,6 +668,9 @@ function StudentsContent() {
                   filtered.map((s, i) => (
                     <tr key={s.student_id}>
                       <td>{i + 1}</td>
+                      <td>
+                        <Avatar src={s.photo_url} name={`${s.first_name} ${s.last_name || ''}`} />
+                      </td>
                       <td>{s.roll_no}</td>
                       <td>
                         <strong>
@@ -668,7 +683,7 @@ function StudentsContent() {
                       <td>{s.father_name || '—'}</td>
                       <td>{s.contact_1 || '—'}</td>
                       <td>{s.email || '—'}</td>
-                      <td style={{ fontSize: 12, color: '#888' }}>
+                      <td className="text-muted" style={{ fontSize: 12 }}>
                         {s.admission_date ? formatDate(s.admission_date) : '—'}
                       </td>
                       <td>

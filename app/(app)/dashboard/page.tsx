@@ -355,33 +355,35 @@ function DashboardContent() {
         </button>
       </div>
 
-      {/* Stats Row */}
+      {/* Stats Row — each card shows a shimmering skeleton until its
+          value has actually loaded (still '—'), instead of flashing an
+          em-dash placeholder that reads as broken/empty on first paint. */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="label">Total Students</div>
-          <div className="value">{statStudents}</div>
+          <div className={`value ${statStudents === '—' ? 'skeleton' : ''}`}>{statStudents === '—' ? '000' : statStudents}</div>
         </div>
         <div className="stat-card">
           <div className="label">Total Staff</div>
-          <div className="value">{statStaff}</div>
+          <div className={`value ${statStaff === '—' ? 'skeleton' : ''}`}>{statStaff === '—' ? '000' : statStaff}</div>
         </div>
         <div className="stat-card">
           <div className="label">Fee Collected</div>
-          <div className="value" dangerouslySetInnerHTML={{ __html: statFeeMonthHtml }} />
+          <div className={`value ${statFeeMonthHtml === '—' ? 'skeleton' : ''}`} dangerouslySetInnerHTML={{ __html: statFeeMonthHtml === '—' ? '00000' : statFeeMonthHtml }} />
         </div>
         <div className="stat-card">
           <div className="label">Expenses (Month)</div>
-          <div className="value" dangerouslySetInnerHTML={{ __html: statExpMonthHtml }} />
+          <div className={`value ${statExpMonthHtml === '—' ? 'skeleton' : ''}`} dangerouslySetInnerHTML={{ __html: statExpMonthHtml === '—' ? '00000' : statExpMonthHtml }} />
         </div>
         <div className="stat-card">
           <div className="label">Overdue Months</div>
-          <div className={`value ${Number(statOverdueMonths) > 0 ? 'amount-danger' : ''}`}>{statOverdueMonths}</div>
+          <div className={`value ${statOverdueMonths === '—' ? 'skeleton' : (Number(statOverdueMonths) > 0 ? 'amount-danger' : '')}`}>{statOverdueMonths === '—' ? '0' : statOverdueMonths}</div>
         </div>
         <div className="stat-card">
           <div className="label">Balance (Month)</div>
           <div
-            className={`value ${balancePositive ? 'amount-success' : 'amount-danger'}`}
-            dangerouslySetInnerHTML={{ __html: statBalanceHtml }}
+            className={`value ${statBalanceHtml === '—' ? 'skeleton' : (balancePositive ? 'amount-success' : 'amount-danger')}`}
+            dangerouslySetInnerHTML={{ __html: statBalanceHtml === '—' ? '00000' : statBalanceHtml }}
           />
         </div>
       </div>
@@ -390,11 +392,27 @@ function DashboardContent() {
       <div className="grid-2">
         <div className="card">
           <div className="section-title">Today's Fee Collections</div>
-          <div dangerouslySetInnerHTML={{ __html: todayFeesHtml }} />
+          {todayFeesHtml === 'Loading…' ? (
+            <div>
+              <div className="skeleton skeleton-text" style={{ width: '80%' }} />
+              <div className="skeleton skeleton-text" style={{ width: '60%' }} />
+              <div className="skeleton skeleton-text" style={{ width: '70%' }} />
+            </div>
+          ) : (
+            <div dangerouslySetInnerHTML={{ __html: todayFeesHtml }} />
+          )}
         </div>
         <div className="card">
           <div className="section-title">Fee Defaulters — Selected Month</div>
-          <div dangerouslySetInnerHTML={{ __html: defaultersHtml }} />
+          {defaultersHtml === 'Loading…' ? (
+            <div>
+              <div className="skeleton skeleton-text" style={{ width: '75%' }} />
+              <div className="skeleton skeleton-text" style={{ width: '65%' }} />
+              <div className="skeleton skeleton-text" style={{ width: '55%' }} />
+            </div>
+          ) : (
+            <div dangerouslySetInnerHTML={{ __html: defaultersHtml }} />
+          )}
         </div>
       </div>
 

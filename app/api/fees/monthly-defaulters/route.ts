@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
                s.contact_1,
                s.contact_2,
                s.address,
+               s.photo_url,
                s.admission_date,
                COALESCE(s.fee_start_month, DATE_TRUNC('month', s.admission_date)) AS fee_start_month,
                generate_series(
@@ -62,6 +63,7 @@ export async function GET(req: NextRequest) {
              sm.contact_1,
              sm.contact_2,
              sm.address,
+             sm.photo_url,
              sm.academic_month,
              COALESCE(pa.amount_due, 0)  AS amount_due,
              COALESCE(pa.amount_paid, 0) AS amount_paid,

@@ -16,9 +16,10 @@
  * hasPerm() calls.
  */
 
-import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AuthedPage from '@/components/AuthedPage';
+import Avatar from '@/components/Avatar';
 import { api, apiForm as _apiForm, bindPanelKeyboardNavigation, dbg, formatDate, formatMoney, normalizeList } from '@/lib/api-client';
 import { showToast } from '@/lib/toast';
 import { hasPerm, loadMyPermissions, refreshMyPermissions } from '@/lib/permissions-client';
@@ -371,9 +372,15 @@ function FeesContent() {
     return () => document.removeEventListener('click', onDocClick);
   }, []);
 
+  // Deferred search text: same technique as the Students page — typing
+  // stays instantly responsive while the (larger, avatar-bearing) fee
+  // tables trail a frame behind, so this tab never feels "stuck".
+  const deferredFeeSearch = useDeferredValue(feeSearch);
+  const deferredDefSearch = useDeferredValue(defSearch);
+
   // ---------------- Monthly tab filtering ----------------
   const filteredMonthly = useMemo(() => {
-    const q = feeSearch.toLowerCase().trim();
+    const q = deferredFeeSearch.toLowerCase().trim();
     let list = monthlyData;
     if (q) {
       list = list.filter(
@@ -396,7 +403,7 @@ function FeesContent() {
       list = list.filter((r) => (wantBoys && r.gender === 'male') || (wantGirls && r.gender === 'female'));
     }
     return list;
-  }, [monthlyData, feeSearch, statusFilter, feeFilterBoys, feeFilterGirls]);
+  }, [monthlyData, deferredFeeSearch, statusFilter, feeFilterBoys, feeFilterGirls]);
 
   // ---------------- Daily tab filtering ----------------
   const filteredDaily = useMemo(() => {
@@ -412,7 +419,7 @@ function FeesContent() {
 
   // ---------------- Monthly defaulters filtering ----------------
   const filteredDefaulters = useMemo(() => {
-    const q = defSearch.toLowerCase().trim();
+    const q = deferredDefSearch.toLowerCase().trim();
     let filtered = defaultersList.filter(
       (r) => `${r.first_name} ${r.last_name}`.toLowerCase().includes(q) || String(r.roll_no || '').toLowerCase().includes(q)
     );
@@ -422,7 +429,7 @@ function FeesContent() {
       filtered = filtered.filter((r) => (wantBoys && r.gender === 'male') || (wantGirls && r.gender === 'female'));
     }
     return filtered;
-  }, [defaultersList, defSearch, defFilterBoys, defFilterGirls]);
+  }, [defaultersList, deferredDefSearch, defFilterBoys, defFilterGirls]);
   const groupedDefaulters = useMemo(() => groupDefaultersByMonth(filteredDefaulters), [filteredDefaulters]);
 
   const historyTotals = useMemo(() => {
@@ -913,15 +920,15 @@ function FeesContent() {
                   style={{ display: 'block', position: 'absolute', zIndex: 20, left: 0, right: 0, top: '100%', maxHeight: 180, overflowY: 'auto' }}
                 >
                   {payMatches.length === 0 ? (
-                    <div style={{ padding: '8px 10px', color: '#888', fontSize: 12 }}>No matching student.</div>
+                    <div className="text-muted" style={{ padding: '8px 10px', fontSize: 12 }}>No matching student.</div>
                   ) : (
                     payMatches.map((s) => (
                       <div
                         key={s.student_id}
-                        style={{ padding: '8px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #f0f0f0' }}
+                        className="popup-option" style={{ padding: '8px 10px', cursor: 'pointer', fontSize: 13 }}
                         onMouseDown={() => selectPayStudent(s.student_id)}
                       >
-                        Roll {s.roll_no} — {s.first_name} {s.last_name} <span style={{ color: '#888' }}>({s.class}-{s.section})</span>
+                        Roll {s.roll_no} — {s.first_name} {s.last_name} <span className="text-muted">({s.class}-{s.section})</span>
                       </div>
                     ))
                   )}
@@ -997,7 +1004,7 @@ function FeesContent() {
                     <img
                       src={receiptData.photo_url}
                       alt="Student photo"
-                      style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 16, border: '1px solid #ddd' }}
+                      className="border-input" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 16 }}
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
@@ -1135,6 +1142,7 @@ function FeesContent() {
                   <thead>
                     <tr>
                       <th>#</th>
+                      <th>Photo</th>
                       <th>Roll</th>
                       <th>Student</th>
                       <th>Class</th>
@@ -1150,13 +1158,13 @@ function FeesContent() {
                   <tbody>
                     {monthlyLoadFailed ? (
                       <tr>
-                        <td colSpan={11} className="empty">
+                        <td colSpan={12} className="empty">
                           Failed to load.
                         </td>
                       </tr>
                     ) : filteredMonthly.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="empty">
+                        <td colSpan={12} className="empty">
                           No records found.
                         </td>
                       </tr>
@@ -1183,6 +1191,9 @@ function FeesContent() {
                         return (
                           <tr key={r.payment_id ?? `${r.student_id}-${i}`}>
                             <td>{i + 1}</td>
+                            <td>
+                              <Avatar src={r.photo_url} name={`${r.first_name} ${r.last_name || ''}`} />
+                            </td>
                             <td>{r.roll_no}</td>
                             <td>
                               {r.first_name} {r.last_name}
@@ -1239,7 +1250,7 @@ function FeesContent() {
           <div>
             <div className="card" style={{ marginBottom: 12 }}>
               <div className="filters">
-                <label style={{ fontSize: 12, color: '#666' }}>Date:</label>
+                <label className="text-secondary" style={{ fontSize: 12 }}>Date:</label>
                 <input type="date" value={dailyDateFilter} onChange={(e) => setDailyDateFilter(e.target.value)} />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
                   <input type="checkbox" checked={dailyFilterBoys} onChange={(e) => setDailyFilterBoys(e.target.checked)} /> Boys
@@ -1255,6 +1266,7 @@ function FeesContent() {
                   <thead>
                     <tr>
                       <th>#</th>
+                      <th>Photo</th>
                       <th>Student</th>
                       <th>Class</th>
                       <th>Section</th>
@@ -1267,19 +1279,19 @@ function FeesContent() {
                   <tbody>
                     {!dailyLoaded ? (
                       <tr>
-                        <td colSpan={8} className="loading">
+                        <td colSpan={9} className="loading">
                           Select date
                         </td>
                       </tr>
                     ) : dailyLoadFailed ? (
                       <tr>
-                        <td colSpan={8} className="empty">
+                        <td colSpan={9} className="empty">
                           Failed to load.
                         </td>
                       </tr>
                     ) : filteredDaily.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="empty">
+                        <td colSpan={9} className="empty">
                           No payments on this date.
                         </td>
                       </tr>
@@ -1288,13 +1300,16 @@ function FeesContent() {
                         <tr key={r.payment_id ?? `${r.student_id}-${i}`}>
                           <td>{i + 1}</td>
                           <td>
+                            <Avatar src={r.photo_url} name={`${r.first_name} ${r.last_name || ''}`} />
+                          </td>
+                          <td>
                             {r.first_name} {r.last_name}
                           </td>
                           <td>{r.class}</td>
                           <td>{r.section}</td>
                           <td>{monthLabel(r.academic_month)}</td>
                           <td className="fee-paid">{formatMoney(r.amount_paid)}</td>
-                          <td style={{ fontSize: 12, color: '#888' }}>
+                          <td className="text-muted" style={{ fontSize: 12 }}>
                             {r.payment_date ? new Date(r.payment_date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'}
                           </td>
                           <td>
@@ -1322,7 +1337,7 @@ function FeesContent() {
           <div>
             <div className="card" style={{ marginBottom: 12 }}>
               <div className="filters">
-                <label style={{ fontSize: 12, color: '#666' }}>Month:</label>
+                <label className="text-secondary" style={{ fontSize: 12 }}>Month:</label>
                 <input type="month" value={defMonthFilter} onChange={(e) => setDefMonthFilter(e.target.value)} />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
                   <input type="checkbox" checked={defFilterBoys} onChange={(e) => setDefFilterBoys(e.target.checked)} /> Boys
@@ -1333,12 +1348,12 @@ function FeesContent() {
                 <input
                   type="text"
                   placeholder="Search student…"
-                  style={{ padding: '7px 10px', border: '1px solid #ccc', borderRadius: 4, fontSize: 13, flex: 1, minWidth: 180 }}
+                  className="border-input" style={{ padding: '7px 10px', borderRadius: 4, fontSize: 13, flex: 1, minWidth: 180 }}
                   value={defSearch}
                   onChange={(e) => setDefSearch(e.target.value)}
                 />
                 {defaultersLoaded && !defaultersLoadFailed && (
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#555', marginLeft: 'auto' }}>
+                  <span className="text-secondary" style={{ fontSize: 14, fontWeight: 600, marginLeft: 'auto' }}>
                     {filteredDefaulters.length} defaulter month{filteredDefaulters.length !== 1 ? 's' : ''} total
                   </span>
                 )}
@@ -1350,6 +1365,7 @@ function FeesContent() {
                   <thead>
                     <tr>
                       <th>#</th>
+                      <th>Photo</th>
                       <th>Month</th>
                       <th>Roll</th>
                       <th>Student</th>
@@ -1365,19 +1381,19 @@ function FeesContent() {
                   <tbody>
                     {!defaultersLoaded ? (
                       <tr>
-                        <td colSpan={11} className="loading">
+                        <td colSpan={12} className="loading">
                           Loading…
                         </td>
                       </tr>
                     ) : defaultersLoadFailed ? (
                       <tr>
-                        <td colSpan={11} className="empty">
+                        <td colSpan={12} className="empty">
                           Failed to load.
                         </td>
                       </tr>
                     ) : groupedDefaulters.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="empty">
+                        <td colSpan={12} className="empty">
                           {defSearch || defFilterBoys || defFilterGirls ? 'No matching students.' : 'No monthly defaulters. 🎉'}
                         </td>
                       </tr>
@@ -1387,7 +1403,7 @@ function FeesContent() {
                         return groupedDefaulters.map((group) => (
                           <Fragment key={`group-${group.academic_month}`}>
                             <tr className="group-header-row" key={`hdr-${group.academic_month}`}>
-                              <td colSpan={11} style={{ fontWeight: 600, padding: '8px 10px' }}>
+                              <td colSpan={12} style={{ fontWeight: 600, padding: '8px 10px' }}>
                                 {monthLabel(group.academic_month)} — {group.count} defaulter{group.count !== 1 ? 's' : ''}
                               </td>
                             </tr>
@@ -1399,6 +1415,9 @@ function FeesContent() {
                               return (
                                 <tr key={`${group.academic_month}-${r.student_id}`}>
                                   <td>{rowCounter}</td>
+                                  <td>
+                                    <Avatar src={r.photo_url} name={`${r.first_name} ${r.last_name || ''}`} />
+                                  </td>
                                   <td>{monthLabel(r.academic_month)}</td>
                                   <td>{r.roll_no}</td>
                                   <td>
@@ -1446,7 +1465,7 @@ function FeesContent() {
                     type="text"
                     autoComplete="off"
                     placeholder="Search student by name or roll no…"
-                    style={{ width: '100%', padding: '7px 10px', border: '1px solid #ccc', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
+                    className="border-input" style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}
                     value={historySearch}
                     onChange={(e) => {
                       setHistorySearch(e.target.value);
@@ -1562,7 +1581,7 @@ function FeesContent() {
                 </table>
               </div>
               {historyList.length > 0 && (
-                <div style={{ padding: '8px 0 0', fontSize: 13, color: '#555' }}>
+                <div className="text-secondary" style={{ padding: '8px 0 0', fontSize: 13 }}>
                   Total Due: <strong>{formatMoney(historyTotals.totalDue)}</strong> &nbsp;|&nbsp; Total Paid:{' '}
                   <strong className="fee-paid">{formatMoney(historyTotals.totalPaid)}</strong> &nbsp;|&nbsp; Outstanding:{' '}
                   <strong className="fee-unpaid">{formatMoney(historyTotals.totalDue - historyTotals.totalPaid)}</strong>

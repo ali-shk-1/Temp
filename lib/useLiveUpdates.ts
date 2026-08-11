@@ -23,7 +23,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { getToken } from './api-client';
+import { getToken, clearApiCache } from './api-client';
 
 type Handlers = Record<string, () => void>;
 
@@ -60,6 +60,12 @@ export function useLiveUpdates(handlers: Handlers): void {
         clearTimeout(debounceTimers[eventName]);
         debounceTimers[eventName] = setTimeout(() => {
           try {
+            // A server-pushed change (from this tab or another) means
+            // any cached GET could now be stale, so drop the whole
+            // cache before the page's own handler re-fetches — otherwise
+            // the handler's api('GET', ...) could just hand back the
+            // same pre-change cached data if its TTL hasn't lapsed yet.
+            clearApiCache();
             handlersRef.current[eventName]?.();
           } catch (err: any) {
             // eslint-disable-next-line no-console

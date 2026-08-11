@@ -6,7 +6,7 @@
  * filter, same leave/edit/delete confirm() flows and permission gating.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useDeferredValue, useMemo, useRef, useState } from 'react';
 import AuthedPage from '@/components/AuthedPage';
 import { api, apiForm, formatMoney, formatDate, normalizeList } from '@/lib/api-client';
 import { showToast } from '@/lib/toast';
@@ -117,8 +117,10 @@ function StaffContent() {
     [allStaff],
   );
 
+  const deferredSearch = useDeferredValue(search);
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return allStaff.filter((s) => {
       // Case-insensitive across name, CNIC, designation, and admin name —
       // so typing "hassan" matches Hassan himself AND anyone whose
@@ -129,7 +131,7 @@ function StaffContent() {
         !filterAdmin || (filterAdmin === 'none' ? !s.admin_id : String(s.admin_id) === filterAdmin);
       return (!q || txt.includes(q)) && matchesDesig && matchesAdmin;
     });
-  }, [allStaff, search, filterDesig, filterAdmin]);
+  }, [allStaff, deferredSearch, filterDesig, filterAdmin]);
 
   function setPhotoPreviewFor(src: string) {
     setPhotoPreview(src);
@@ -389,7 +391,7 @@ function StaffContent() {
                       </option>
                     ))}
                 </select>
-                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
                   Optional. Assign this staff member as reporting to another staff member with an Admin designation.
                 </small>
               </div>
@@ -403,7 +405,7 @@ function StaffContent() {
                   accept="image/*"
                   onChange={(e) => previewSelectedPhoto(e.target.files?.[0] || null)}
                 />
-                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                <small className="text-secondary" style={{ display: 'block', marginTop: 4 }}>
                   Saved as uploads/staff/&lt;CNIC&gt;.ext — replaces any existing photo for this CNIC.
                 </small>
               </div>
@@ -462,7 +464,7 @@ function StaffContent() {
                 <input
                   type="text"
                   placeholder="e.g. Teacher"
-                  style={{ flex: 1, padding: 8, border: '1px solid #ccc', borderRadius: 4 }}
+                  className="border-input" style={{ flex: 1, padding: 8, borderRadius: 4 }}
                   value={newDesigTitle}
                   onChange={(e) => setNewDesigTitle(e.target.value)}
                 />
@@ -476,7 +478,7 @@ function StaffContent() {
             {designations.length === 0 ? (
               <p className="empty">No designations yet.</p>
             ) : (
-              <div style={{ border: '1px solid #eee', borderRadius: 4 }}>
+              <div className="border-subtle" style={{ borderRadius: 4 }}>
                 {designations.map((d, i) => (
                   <div
                     key={d.id}
@@ -545,7 +547,7 @@ function StaffContent() {
                 </option>
               ))}
             </select>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#555', marginLeft: 'auto' }}>
+            <span className="text-secondary" style={{ fontSize: 14, fontWeight: 600, marginLeft: 'auto' }}>
               {filtered.length} staff member{filtered.length !== 1 ? 's' : ''}
             </span>
           </div>

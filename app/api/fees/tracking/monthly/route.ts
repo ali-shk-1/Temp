@@ -24,12 +24,12 @@ export async function GET(req: NextRequest) {
         SUM(fp.amount_due)  AS amount_due,
         SUM(fp.amount_paid) AS amount_paid,
         MAX(fp.payment_date) AS last_payment_date,
-        s.roll_no, s.first_name, s.last_name, s.class, s.section, s.gender, s.father_name
+        s.roll_no, s.first_name, s.last_name, s.class, s.section, s.gender, s.father_name, s.photo_url
       FROM fee_payments fp
       JOIN students s ON s.student_id = fp.student_id
       WHERE DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month)) = DATE_TRUNC('month', ${month}::DATE)
       GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month), s.roll_no,
-               s.first_name, s.last_name, s.class, s.section, s.gender, s.father_name
+               s.first_name, s.last_name, s.class, s.section, s.gender, s.father_name, s.photo_url
       ORDER BY s.class, s.section, s.roll_no, academic_month
     `;
 

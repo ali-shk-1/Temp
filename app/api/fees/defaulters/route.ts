@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const rows = await prisma.$queryRaw<any[]>`
       SELECT
         s.student_id, s.roll_no, s.first_name, s.last_name,
-        s.class, s.section, s.contact_1, s.father_name, s.admission_date,
+        s.class, s.section, s.contact_1, s.father_name, s.admission_date, s.photo_url,
         fp.amount_due, fp.amount_paid,
         (fp.amount_due - fp.amount_paid) AS balance,
         fp.payment_date

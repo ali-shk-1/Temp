@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     const rows = await prisma.$queryRaw<any[]>`
       SELECT fp.payment_id, fp.student_id, fp.academic_month, fp.amount_due, fp.amount_paid,
-             fp.payment_date, s.first_name, s.last_name, s.class, s.section, s.gender,
+             fp.payment_date, s.first_name, s.last_name, s.class, s.section, s.gender, s.photo_url,
              pr.receipt_no
       FROM fee_payments fp
       JOIN students s ON s.student_id = fp.student_id

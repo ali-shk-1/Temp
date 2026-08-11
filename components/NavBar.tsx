@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { getUser, logout } from '@/lib/api-client';
+import { getUser, logout, api } from '@/lib/api-client';
 import { isAliUser, hasPageAccess } from '@/lib/permissions-client';
 import { initTheme, toggleTheme } from '@/lib/theme';
 
@@ -28,6 +28,30 @@ const ALL_PAGES = [
   { href: '/staff', label: 'Staff', key: 'staff' },
   { href: '/left-staff', label: 'Left Staff', key: 'left-staff' },
 ] as const;
+
+/**
+ * Each page's primary GET endpoint(s), so hovering/focusing a nav link
+ * can warm the shared GET cache (lib/api-client.ts) a beat before the
+ * click actually navigates. On a fast local network this alone often
+ * means the data is already cached by the time the new page mounts —
+ * no spinner, no freeze. Cheap and safe: api() dedupes in-flight
+ * requests, so a hover-then-click never fires the request twice.
+ */
+const PREFETCH_ENDPOINTS: Record<string, string[]> = {
+  students: ['/api/students'],
+  'left-students': ['/api/students/left'],
+  staff: ['/api/staff', '/api/staff/designations'],
+  'left-staff': ['/api/staff/left'],
+  receipts: ['/api/fees/receipts'],
+};
+
+function prefetchPageData(key: string) {
+  const endpoints = PREFETCH_ENDPOINTS[key];
+  if (!endpoints) return;
+  endpoints.forEach((path) => {
+    void api('GET', path).catch(() => {});
+  });
+}
 
 const THEME_ICON_SUN = (
   <svg className="theme-icon theme-icon-sun" width={16} height={16} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -76,7 +100,13 @@ export default function NavBar({ activePage }: { activePage: string }) {
       </Link>
       <nav>
         {pages.map((p) => (
-          <Link key={p.key} href={p.href} className={activePage === p.key || pathname === p.href ? 'active' : ''}>
+          <Link
+            key={p.key}
+            href={p.href}
+            className={activePage === p.key || pathname === p.href ? 'active' : ''}
+            onMouseEnter={() => prefetchPageData(p.key)}
+            onFocus={() => prefetchPageData(p.key)}
+          >
             {p.label}
           </Link>
         ))}

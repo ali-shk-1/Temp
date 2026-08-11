@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import AuthedPage from '@/components/AuthedPage';
+import Avatar from '@/components/Avatar';
 import { api, dbg, formatDate, formatMoney } from '@/lib/api-client';
 import { loadMyPermissions, refreshMyPermissions } from '@/lib/permissions-client';
 import { useLiveUpdates } from '@/lib/useLiveUpdates';
@@ -25,6 +26,7 @@ interface ReceiptRow {
   print_mode?: string;
   issued_at?: string;
   issued_by?: string;
+  photo_url?: string | null;
 }
 
 const MONTH_NAMES = [
@@ -165,6 +167,7 @@ function ReceiptsContent() {
             <thead>
               <tr>
                 <th>Receipt #</th>
+                <th>Photo</th>
                 <th>Student</th>
                 <th>Roll</th>
                 <th>Class</th>
@@ -179,19 +182,19 @@ function ReceiptsContent() {
             <tbody>
               {!loaded ? (
                 <tr>
-                  <td colSpan={10} className="loading">
+                  <td colSpan={11} className="loading">
                     Loading…
                   </td>
                 </tr>
               ) : loadFailed ? (
                 <tr>
-                  <td colSpan={10} className="empty">
+                  <td colSpan={11} className="empty">
                     Failed to load.
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="empty">
+                  <td colSpan={11} className="empty">
                     No receipts found.
                   </td>
                 </tr>
@@ -200,6 +203,9 @@ function ReceiptsContent() {
                   <tr key={r.receipt_no}>
                     <td>
                       <strong>#{r.receipt_no}</strong>
+                    </td>
+                    <td>
+                      <Avatar src={r.photo_url} name={r.student_name || '?'} />
                     </td>
                     <td>{r.student_name || '—'}</td>
                     <td>{r.roll_no ?? '—'}</td>

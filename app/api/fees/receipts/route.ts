@@ -36,8 +36,10 @@ export async function GET(req: NextRequest) {
     const rows = await prisma.$queryRaw<any[]>`
       SELECT pr.receipt_no, pr.payment_id, pr.student_id, pr.roll_no,
              pr.student_name, pr.class, pr.section, pr.academic_month,
-             pr.amount_due, pr.amount_paid, pr.print_mode, pr.issued_at, pr.issued_by
+             pr.amount_due, pr.amount_paid, pr.print_mode, pr.issued_at, pr.issued_by,
+             s.photo_url
       FROM payment_receipts pr
+      LEFT JOIN students s ON s.student_id = pr.student_id
       WHERE 1=1
       ${whereExtra}
       ORDER BY pr.receipt_no DESC

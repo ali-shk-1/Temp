@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
         class: true,
         section: true,
         gender: true,
+        photo_url: true,
       },
     });
 
@@ -94,6 +95,7 @@ export async function GET(req: NextRequest) {
         class: s.class,
         section: s.section,
         gender: s.gender,
+        photo_url: s.photo_url,
         months,
       };
     });

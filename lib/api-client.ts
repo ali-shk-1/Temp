@@ -43,6 +43,7 @@ export function logout(): void {
   sessionStorage.removeItem('user');
   sessionStorage.removeItem('myPermissions');
   sessionStorage.removeItem('myPageVisibility');
+  clearApiCache();
   window.location.href = '/login';
 }
 
@@ -50,15 +51,187 @@ export function logout(): void {
 export class ApiError extends Error {}
 
 /**
+ * GET response cache, keyed by request path, persisted to localStorage
+ * and synced live across every open tab of the same browser.
+ *
+ * How this achieves each of the three speed goals:
+ *   1. Repeat visits within a tab: served straight from the in-memory
+ *      Map, no disk read needed.
+ *   2. Cross-tab sync: every tab also writes each cache entry to
+ *      localStorage and broadcasts via the `storage` event (the
+ *      standard, no-extra-API way tabs on the same origin notify each
+ *      other) — so a payment added in the Fees tab makes the Dashboard
+ *      tab's cached numbers update within the same tick, no reload.
+ *   3. Fast *first* load of a session: on module init we hydrate the
+ *      in-memory Map from whatever's already in localStorage from a
+ *      previous visit, so even a brand-new page mount can render
+ *      instantly from a slightly-stale cache while a fresh copy loads
+ *      behind it — rather than starting from a blank slate every time.
+ *
+ * Lifetime and safety:
+ *   - Each entry has its own expiry (CACHE_TTL_MS) and is dropped once
+ *     stale, whether read from memory or from disk.
+ *   - Keys are scoped by user token, so switching users never serves
+ *     one person's cached data to another on the same device.
+ *   - logout() wipes both the in-memory Map and every persisted key —
+ *     nothing lingers on disk after signing out.
+ *   - localStorage has ~5-10MB of headroom per origin; this app's
+ *     cached JSON (student/staff/fee lists) is realistically tens of
+ *     KB total, so the persisted cache stays a small fraction of that.
+ */
+const CACHE_TTL_MS = 30_000;
+const STORAGE_PREFIX = 'apicache::';
+type CacheEntry = { data: any; expires: number };
+const getCache = new Map<string, CacheEntry>();
+// In-flight GETs by path, so two components requesting the same path in
+// the same tick share one network request instead of firing twice.
+const inFlight = new Map<string, Promise<any>>();
+
+function cacheKey(path: string): string {
+  // Token-scoped so switching users (rare, but possible in the same tab
+  // via re-login) never serves one user's cached data to another.
+  return `${getToken() || ''}::${path}`;
+}
+
+function storageKey(key: string): string {
+  return STORAGE_PREFIX + key;
+}
+
+function readFromDisk(key: string): CacheEntry | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(storageKey(key));
+    if (!raw) return null;
+    const entry: CacheEntry = JSON.parse(raw);
+    if (entry.expires <= Date.now()) {
+      localStorage.removeItem(storageKey(key));
+      return null;
+    }
+    return entry;
+  } catch {
+    return null; // corrupt/unavailable storage never breaks a page load
+  }
+}
+
+function writeToDisk(key: string, entry: CacheEntry): void {
+  if (typeof window === 'undefined') return;
+  try {
+    // Writing here is what fires the `storage` event in every OTHER
+    // open tab (same-tab writes never trigger it, by spec) — that's
+    // the actual cross-tab sync mechanism, no extra library needed.
+    localStorage.setItem(storageKey(key), JSON.stringify(entry));
+  } catch {
+    // Storage full/disabled (private browsing, quota) — degrade to
+    // memory-only caching rather than throwing.
+  }
+}
+
+function setCache(key: string, data: any): void {
+  const entry = { data, expires: Date.now() + CACHE_TTL_MS };
+  getCache.set(key, entry);
+  writeToDisk(key, entry);
+}
+
+export function clearApiCache(): void {
+  getCache.clear();
+  inFlight.clear();
+  if (typeof window === 'undefined') return;
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(STORAGE_PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // ignore — nothing to clean up if storage isn't available
+  }
+}
+
+// Cross-tab live sync: when another tab writes or clears a cache entry,
+// mirror that into this tab's in-memory Map immediately, so a page
+// already open in this tab reflects the change without needing its own
+// network request. (Doesn't re-render already-rendered components on
+// its own — pages still pick this up next time they read the cache,
+// e.g. on their own live-update refresh — but it means the data is
+// already warm and correct by the time they do.)
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e: StorageEvent) => {
+    if (!e.key || !e.key.startsWith(STORAGE_PREFIX)) return;
+    const key = e.key.slice(STORAGE_PREFIX.length);
+    if (e.newValue === null) {
+      getCache.delete(key);
+      return;
+    }
+    try {
+      const entry: CacheEntry = JSON.parse(e.newValue);
+      getCache.set(key, entry);
+    } catch {
+      // ignore malformed entries from other tabs
+    }
+  });
+
+  // Hydrate this tab's in-memory cache from disk on load, so even a
+  // brand new tab/page mount can serve instantly from whatever the
+  // last tab left behind (still subject to each entry's own expiry).
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(STORAGE_PREFIX))
+      .forEach((k) => {
+        const key = k.slice(STORAGE_PREFIX.length);
+        const entry = readFromDisk(key);
+        if (entry) getCache.set(key, entry);
+      });
+  } catch {
+    // ignore — falls back to network-only for this tab
+  }
+}
+
+/**
  * api('GET', '/api/students') style call, matching the original api.js
  * function signature and behavior exactly (including returning
  * `undefined` on a 401, after redirecting to login).
+ *
+ * GET requests are cached (see getCache above); every other method
+ * always hits the network and invalidates the cache on success, since
+ * it just changed server state that some cached GET may reflect.
  */
 export async function api<T = any>(
   method: string,
   path: string,
-  body: unknown = null
+  body: unknown = null,
+  opts?: { fresh?: boolean }
 ): Promise<T | undefined> {
+  const isGet = method.toUpperCase() === 'GET';
+
+  if (isGet && !opts?.fresh) {
+    const key = cacheKey(path);
+    const cached = getCache.get(key);
+    if (cached && cached.expires > Date.now()) {
+      // Serve from cache instantly, but kick off a silent background
+      // refresh so the cache doesn't go stale between now and its TTL
+      // (classic stale-while-revalidate — the caller never awaits this).
+      void fetchAndCache<T>(path, key).catch(() => {});
+      return cached.data as T;
+    }
+    const pending = inFlight.get(key);
+    if (pending) return pending as Promise<T>;
+    return fetchAndCache<T>(path, key);
+  }
+
+  const result = await doFetch<T>(method, path, body);
+  if (!isGet) clearApiCache(); // any write can affect any number of cached reads
+  return result;
+}
+
+async function fetchAndCache<T>(path: string, key: string): Promise<T | undefined> {
+  const promise = doFetch<T>('GET', path, null).then((data) => {
+    if (data !== undefined) setCache(key, data);
+    inFlight.delete(key);
+    return data;
+  });
+  inFlight.set(key, promise);
+  return promise;
+}
+
+async function doFetch<T>(method: string, path: string, body: unknown): Promise<T | undefined> {
   const opts: RequestInit = {
     method,
     headers: {

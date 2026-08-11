@@ -303,7 +303,7 @@ function DbAdminContent() {
                         {data.columns.map((col) => (
                           <td key={col.name} style={{ whiteSpace: 'nowrap', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {row[col.name] === null || row[col.name] === undefined ? (
-                              <span style={{ color: 'var(--muted, #888)' }}>—</span>
+                              <span className="text-muted">—</span>
                             ) : (
                               String(row[col.name])
                             )}
@@ -362,7 +362,7 @@ function DbAdminContent() {
                   <label key={col.name} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span>
                       {col.name}
-                      {col.isRequired ? ' *' : ''} <small style={{ color: 'var(--muted, #888)' }}>{col.type}</small>
+                      {col.isRequired ? ' *' : ''} <small className="text-muted">{col.type}</small>
                     </span>
                     <input
                       value={editValues[col.name] ?? ''}
@@ -372,7 +372,7 @@ function DbAdminContent() {
                   </label>
                 ))}
               {data.columns.filter((c) => c.isReadOnly).length > 0 && (
-                <div style={{ fontSize: 13, color: 'var(--muted, #888)' }}>
+                <div className="text-muted" style={{ fontSize: 13 }}>
                   Read-only: {data.columns.filter((c) => c.isReadOnly).map((c) => c.name).join(', ')}
                 </div>
               )}
