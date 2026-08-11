@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { authenticate, can } from '@/lib/auth';
 import { handleApiError } from '@/lib/apiHandler';
 import { broadcast } from '@/lib/sse';
-import { allowedClasses, normalizeMonthInput, normalizeGenderInput, isValidEmail, normalizePhoneInput } from '@/lib/students-helpers';
+import { allowedClasses, normalizeMonthInput, normalizeGenderInput, isValidEmail, normalizePhoneInput, normalizeSectionInput } from '@/lib/students-helpers';
 import { deletePhotoByUrl } from '@/lib/uploads';
 import { withDateOnlyFields } from '@/lib/date-format';
 
@@ -51,6 +51,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!allowedClasses.has(normalizedClass)) {
       return NextResponse.json({ error: 'Class must be one of playgroup, nursery, prep, or 1 through 10.' }, { status: 400 });
     }
+    const normalizedSection = normalizeSectionInput(section);
+    if (!normalizedSection) {
+      return NextResponse.json(
+        { error: 'Section must be a single letter (A, B, C) or a stream + letter like Csc-A, Bio-B, Arts-A.' },
+        { status: 400 },
+      );
+    }
     const explicitRollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
     if (explicitRollNo != null && (!Number.isInteger(explicitRollNo) || explicitRollNo <= 0)) {
       return NextResponse.json({ error: 'Roll No must be a positive integer if provided.' }, { status: 400 });
@@ -78,7 +85,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const scopeChanged =
       normalizedClass !== current.class ||
-      section !== current.section ||
+      normalizedSection !== current.section ||
       (normalizedGender || null) !== (current.gender || null);
 
     const MAX_ATTEMPTS = 5;
@@ -88,7 +95,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (rollNo == null && scopeChanged) {
         const maxRow = await prisma.student.aggregate({
           _max: { roll_no: true },
-          where: { class: normalizedClass, section, gender: normalizedGender ?? null },
+          where: { class: normalizedClass, section: normalizedSection, gender: normalizedGender ?? null },
         });
         const maxRoll = maxRow._max.roll_no;
         rollNo = maxRoll != null ? maxRoll + 1 : 1;
@@ -99,7 +106,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           where: { student_id: studentId },
           data: {
             roll_no: rollNo ?? undefined,
-            section,
+            section: normalizedSection,
             class: normalizedClass,
             first_name,
             last_name: last_name || null,

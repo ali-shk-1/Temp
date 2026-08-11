@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { authenticate, can } from '@/lib/auth';
 import { handleApiError } from '@/lib/apiHandler';
 import { broadcast } from '@/lib/sse';
+import { withDateOnlyFields } from '@/lib/date-format';
 
 /* ─────────────────────────────────────────
    GET /api/staff/:id
@@ -17,16 +18,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const staff = await prisma.staff.findUnique({
       where: { staff_id: parseInt(id, 10) },
-      include: { designation: true },
+      include: { designation: true, admin: true },
     });
     if (!staff) return NextResponse.json({ error: 'Staff member not found.' }, { status: 404 });
 
-    const { designation, ...rest } = staff;
-    return NextResponse.json({
-      ...rest,
-      salary: rest.salary == null ? null : Number(rest.salary),
-      designation_title: designation?.title ?? null,
-    });
+    const { designation, admin, ...rest } = staff;
+    return NextResponse.json(
+      withDateOnlyFields(
+        {
+          ...rest,
+          salary: rest.salary == null ? null : Number(rest.salary),
+          designation_title: designation?.title ?? null,
+          admin_name: admin?.name ?? null,
+        },
+        ['joining_date'],
+      ),
+    );
   } catch (err) {
     return handleApiError(err, 'GET');
   }
@@ -34,7 +41,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 /* ─────────────────────────────────────────
    PUT /api/staff/:id
-   Ported from routes/staff.js `PUT /:id`.
+   Ported from routes/staff.js `PUT /:id`, extended with photo_url,
+   joining_date, category, and admin_id (all optional/additive).
 ───────────────────────────────────────── */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = authenticate(req);
@@ -45,22 +53,36 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, cnic, phone_no, salary, designation_id } = body;
+    const { name, cnic, phone_no, salary, designation_id, photo_url, joining_date, category, admin_id } = body;
 
     if (!name || !cnic) {
       return NextResponse.json({ error: 'name and cnic are required.' }, { status: 400 });
+    }
+    if (category && category !== 'category_1' && category !== 'category_2') {
+      return NextResponse.json({ error: 'category must be "category_1" or "category_2".' }, { status: 400 });
+    }
+    if (photo_url && !/^(?:https?:\/\/|\/uploads\/)/i.test(photo_url)) {
+      return NextResponse.json({ error: 'Photo URL must begin with http://, https://, or /uploads/.' }, { status: 400 });
+    }
+    const staffIdNum = parseInt(id, 10);
+    if (admin_id && parseInt(admin_id, 10) === staffIdNum) {
+      return NextResponse.json({ error: 'A staff member cannot be their own admin.' }, { status: 400 });
     }
 
     let staff;
     try {
       staff = await prisma.staff.update({
-        where: { staff_id: parseInt(id, 10) },
+        where: { staff_id: staffIdNum },
         data: {
           name,
           cnic,
           phone_no: phone_no || null,
           salary: salary != null && salary !== '' ? salary : null,
           designation_id: designation_id || null,
+          photo_url: photo_url || null,
+          joining_date: joining_date ? new Date(joining_date) : undefined,
+          category: category || null,
+          admin_id: admin_id || null,
         },
       });
     } catch (err) {
@@ -76,7 +98,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     broadcast('staff.changed', { action: 'updated', staff_id: staff.staff_id });
     return NextResponse.json({
       message: 'Staff member updated.',
-      staff: { ...staff, salary: staff.salary == null ? null : Number(staff.salary) },
+      staff: withDateOnlyFields({ ...staff, salary: staff.salary == null ? null : Number(staff.salary) }, ['joining_date']),
     });
   } catch (err) {
     return handleApiError(err, 'PUT');

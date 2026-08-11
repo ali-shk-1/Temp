@@ -93,6 +93,39 @@ export async function savePhotoFile(
   return `/uploads/${relative}`;
 }
 
+/**
+ * Staff photos are organized as a single flat folder: uploads/staff/<cnic>.ext
+ * (no nested subfolders, unlike student photos) — filename is the staff
+ * member's CNIC with punctuation stripped, so it's stable and collision-free
+ * (CNIC is unique per staff member).
+ */
+export const staffUploadsDir = path.join(uploadsDir, 'staff');
+
+export function resolveStaffPhotoFilename(cnic: unknown, originalName: string): string | null {
+  const safeCnic = safeSegment(cnic);
+  if (!safeCnic) return null;
+  const ext = path.extname(originalName);
+  return `${safeCnic}${ext}`;
+}
+
+/**
+ * Saves an uploaded staff photo File (from FormData) directly under
+ * uploads/staff/, named <cnic>.<ext> — overwrites any existing photo for
+ * that CNIC (e.g. on re-upload/edit), matching "one photo per staff member".
+ */
+export async function saveStaffPhotoFile(file: File, cnic: unknown): Promise<string> {
+  fs.mkdirSync(staffUploadsDir, { recursive: true });
+
+  const filename = resolveStaffPhotoFilename(cnic, file.name);
+  const finalFilename = filename || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${path.extname(file.name)}`;
+
+  const destPath = path.join(/* turbopackIgnore: true */ staffUploadsDir, finalFilename);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  fs.writeFileSync(destPath, buffer);
+
+  return `/uploads/staff/${finalFilename}`;
+}
+
 /** Deletes a photo file given its public /uploads/... URL, ignoring ENOENT. */
 export function deletePhotoByUrl(photoUrl: string | null | undefined): void {
   if (!photoUrl || !photoUrl.startsWith('/uploads/')) return;

@@ -12,6 +12,7 @@ import {
   getClassRollStart,
   isValidEmail,
   normalizePhoneInput,
+  normalizeSectionInput,
 } from '@/lib/students-helpers';
 
 /* ─────────────────────────────────────────
@@ -95,6 +96,13 @@ export async function POST(req: NextRequest) {
     if (!allowedClasses.has(normalizedClass)) {
       return NextResponse.json({ error: 'Class must be one of playgroup, nursery, prep, or 1 through 10.' }, { status: 400 });
     }
+    const normalizedSection = normalizeSectionInput(section);
+    if (!normalizedSection) {
+      return NextResponse.json(
+        { error: 'Section must be a single letter (A, B, C) or a stream + letter like Csc-A, Bio-B, Arts-A.' },
+        { status: 400 },
+      );
+    }
     let explicitRollNo = roll_no != null && roll_no !== '' ? parseInt(roll_no, 10) : null;
     if (explicitRollNo != null && (!Number.isInteger(explicitRollNo) || explicitRollNo <= 0)) {
       return NextResponse.json({ error: 'Roll No must be a positive integer if provided.' }, { status: 400 });
@@ -126,7 +134,7 @@ export async function POST(req: NextRequest) {
           _max: { roll_no: true },
           where: {
             class: normalizedClass,
-            section,
+            section: normalizedSection,
             gender: normalizedGender ?? null,
           },
         });
@@ -138,7 +146,7 @@ export async function POST(req: NextRequest) {
         const student = await prisma.student.create({
           data: {
             roll_no: rollNo,
-            section,
+            section: normalizedSection,
             class: normalizedClass,
             first_name,
             last_name: last_name || null,

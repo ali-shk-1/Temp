@@ -6,9 +6,9 @@
  * filter, same leave/edit/delete confirm() flows and permission gating.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AuthedPage from '@/components/AuthedPage';
-import { api, formatMoney, normalizeList } from '@/lib/api-client';
+import { api, apiForm, formatMoney, formatDate, normalizeList } from '@/lib/api-client';
 import { showToast } from '@/lib/toast';
 import { hasPerm, loadMyPermissions, refreshMyPermissions } from '@/lib/permissions-client';
 import { useLiveUpdates } from '@/lib/useLiveUpdates';
@@ -21,6 +21,11 @@ interface Staff {
   salary: number | null;
   designation_id: number | null;
   designation_title: string | null;
+  photo_url: string | null;
+  joining_date: string | null;
+  category: 'category_1' | 'category_2' | null;
+  admin_id: number | null;
+  admin_name: string | null;
 }
 
 interface Designation {
@@ -35,6 +40,10 @@ const emptyForm = {
   phone: '',
   salary: '',
   designationId: '',
+  joining_date: '',
+  category: '',
+  adminId: '',
+  photo_url: '',
 };
 
 export default function StaffPage() {
@@ -52,9 +61,13 @@ function StaffContent() {
 
   const [search, setSearch] = useState('');
   const [filterDesig, setFilterDesig] = useState('');
+  const [filterAdmin, setFilterAdmin] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const photoFileInputRef = useRef<HTMLInputElement>(null);
 
   const [desigModalOpen, setDesigModalOpen] = useState(false);
   const [newDesigTitle, setNewDesigTitle] = useState('');
@@ -99,13 +112,28 @@ function StaffContent() {
     'permissions.changed': () => refreshMyPermissions(() => setPermTick((n) => n + 1)),
   });
 
+  const adminCandidates = useMemo(
+    () => allStaff.filter((s) => (s.designation_title || '').toLowerCase().includes('admin')),
+    [allStaff],
+  );
+
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
     return allStaff.filter((s) => {
-      const txt = `${s.name} ${s.cnic}`.toLowerCase();
-      return (!q || txt.includes(q)) && (!filterDesig || String(s.designation_id) === filterDesig);
+      // Case-insensitive across name, CNIC, designation, and admin name —
+      // so typing "hassan" matches Hassan himself AND anyone whose
+      // admin_name is "Hassan" (i.e. staff reporting to him).
+      const txt = `${s.name} ${s.cnic} ${s.designation_title || ''} ${s.admin_name || ''}`.toLowerCase();
+      const matchesDesig = !filterDesig || String(s.designation_id) === filterDesig;
+      const matchesAdmin =
+        !filterAdmin || (filterAdmin === 'none' ? !s.admin_id : String(s.admin_id) === filterAdmin);
+      return (!q || txt.includes(q)) && matchesDesig && matchesAdmin;
     });
-  }, [allStaff, search, filterDesig]);
+  }, [allStaff, search, filterDesig, filterAdmin]);
+
+  function setPhotoPreviewFor(src: string) {
+    setPhotoPreview(src);
+  }
 
   function openModal(staff: Staff | null = null) {
     setForm({
@@ -115,12 +143,33 @@ function StaffContent() {
       phone: staff ? staff.phone_no || '' : '',
       salary: staff ? String(staff.salary ?? '') : '',
       designationId: staff ? String(staff.designation_id ?? '') : '',
+      joining_date: staff ? staff.joining_date || '' : '',
+      category: staff ? staff.category || '' : '',
+      adminId: staff ? String(staff.admin_id ?? '') : '',
+      photo_url: staff ? staff.photo_url || '' : '',
     });
+    setPhotoFile(null);
+    if (photoFileInputRef.current) photoFileInputRef.current.value = '';
+    setPhotoPreviewFor(staff ? staff.photo_url || '' : '');
     setModalOpen(true);
   }
 
   function closeModal() {
     setModalOpen(false);
+    setPhotoFile(null);
+    if (photoFileInputRef.current) photoFileInputRef.current.value = '';
+    setPhotoPreviewFor('');
+  }
+
+  function previewSelectedPhoto(file: File | null) {
+    setPhotoFile(file);
+    if (!file) {
+      setPhotoPreviewFor(form.photo_url.trim());
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhotoPreviewFor(String(reader.result));
+    reader.readAsDataURL(file);
   }
 
   function editStaff(id: number) {
@@ -130,23 +179,45 @@ function StaffContent() {
 
   async function saveStaff() {
     const id = form.staff_id;
-    const body = {
+    const body: any = {
       name: form.name.trim(),
       cnic: form.cnic.trim(),
       phone_no: form.phone.trim(),
       salary: parseFloat(form.salary) || 0,
       designation_id: parseInt(form.designationId, 10) || null,
+      joining_date: form.joining_date || null,
+      category: form.category || null,
+      admin_id: form.adminId ? parseInt(form.adminId, 10) : null,
+      photo_url: photoFile ? null : form.photo_url.trim() || null,
     };
     if (!body.name || !body.cnic) {
       showToast('Name and CNIC are required.', 'error');
       return;
     }
     try {
+      let savedStaff: any = null;
+
       if (id) {
-        await api('PUT', `/api/staff/${id}`, body);
+        if (photoFile) {
+          const formData = new FormData();
+          formData.append('cnic', body.cnic);
+          formData.append('photo', photoFile);
+          const upload: any = await apiForm('/api/staff/upload-photo', formData);
+          body.photo_url = upload.url;
+        }
+        const res: any = await api('PUT', `/api/staff/${id}`, body);
+        savedStaff = res.staff;
         showToast('Staff updated.');
       } else {
-        await api('POST', '/api/staff', body);
+        const staffRes: any = await api('POST', '/api/staff', body);
+        savedStaff = staffRes.staff;
+        if (photoFile) {
+          const uploadForm = new FormData();
+          uploadForm.append('cnic', staffRes.staff.cnic);
+          uploadForm.append('photo', photoFile);
+          const upload: any = await apiForm('/api/staff/upload-photo', uploadForm);
+          await api('PUT', `/api/staff/${staffRes.staff.staff_id}`, { ...body, photo_url: upload.url });
+        }
         showToast('Staff added.');
       }
       closeModal();
@@ -273,19 +344,95 @@ function StaffContent() {
                 />
               </div>
             </div>
-            <div className="form-group">
-              <label>Designation</label>
-              <select
-                value={form.designationId}
-                onChange={(e) => setForm({ ...form, designationId: e.target.value })}
-              >
-                <option value="">Select designation</option>
-                {designations.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.title}
-                  </option>
-                ))}
-              </select>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Joining Date</label>
+                <input
+                  type="date"
+                  value={form.joining_date}
+                  onChange={(e) => setForm({ ...form, joining_date: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Category</label>
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                  <option value="">Select category</option>
+                  <option value="category_1">Category 1</option>
+                  <option value="category_2">Category 2</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Designation</label>
+                <select
+                  value={form.designationId}
+                  onChange={(e) => setForm({ ...form, designationId: e.target.value })}
+                >
+                  <option value="">Select designation</option>
+                  {designations.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Under Admin</label>
+                <select value={form.adminId} onChange={(e) => setForm({ ...form, adminId: e.target.value })}>
+                  <option value="">None</option>
+                  {adminCandidates
+                    .filter((a) => String(a.staff_id) !== String(form.staff_id))
+                    .map((a) => (
+                      <option key={a.staff_id} value={a.staff_id}>
+                        {a.name} ({a.designation_title})
+                      </option>
+                    ))}
+                </select>
+                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                  Optional. Assign this staff member as reporting to another staff member with an Admin designation.
+                </small>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group" style={{ width: '100%' }}>
+                <label>Upload Photo</label>
+                <input
+                  ref={photoFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => previewSelectedPhoto(e.target.files?.[0] || null)}
+                />
+                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                  Saved as uploads/staff/&lt;CNIC&gt;.ext — replaces any existing photo for this CNIC.
+                </small>
+              </div>
+            </div>
+            <div className="form-row" style={{ display: photoPreview ? 'flex' : 'none' }}>
+              <div className="form-group" style={{ width: '100%' }}>
+                <label>Photo Preview</label>
+                <div
+                  style={{
+                    border: '1px solid #ccc',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    width: 160,
+                    height: 160,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'var(--input-bg)',
+                  }}
+                >
+                  {photoPreview && (
+                    <img
+                      src={photoPreview}
+                      alt="Photo preview"
+                      style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-outline" onClick={closeModal}>
@@ -377,7 +524,7 @@ function StaffContent() {
             <input
               className="search-box"
               type="text"
-              placeholder="Search name or CNIC…"
+              placeholder="Search name, CNIC, designation, or admin…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -386,6 +533,15 @@ function StaffContent() {
               {designations.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.title}
+                </option>
+              ))}
+            </select>
+            <select value={filterAdmin} onChange={(e) => setFilterAdmin(e.target.value)}>
+              <option value="">All Staff (Any/No Admin)</option>
+              <option value="none">Not Under Any Admin</option>
+              {adminCandidates.map((a) => (
+                <option key={a.staff_id} value={a.staff_id}>
+                  Under {a.name}
                 </option>
               ))}
             </select>
@@ -401,24 +557,28 @@ function StaffContent() {
               <thead>
                 <tr>
                   <th>#</th>
+                  <th>Photo</th>
                   <th>Name</th>
                   <th>Designation</th>
                   <th>CNIC</th>
                   <th>Phone</th>
                   <th>Salary</th>
+                  <th>Joining Date</th>
+                  <th>Category</th>
+                  <th>Under Admin</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loadFailed ? (
                   <tr>
-                    <td colSpan={7} className="empty">
+                    <td colSpan={11} className="empty">
                       Failed to load.
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="empty">
+                    <td colSpan={11} className="empty">
                       No staff found.
                     </td>
                   </tr>
@@ -427,12 +587,26 @@ function StaffContent() {
                     <tr key={s.staff_id}>
                       <td>{i + 1}</td>
                       <td>
+                        {s.photo_url ? (
+                          <img
+                            src={s.photo_url}
+                            alt={s.name}
+                            style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                          />
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
                         <strong>{s.name}</strong>
                       </td>
                       <td>{s.designation_title || '—'}</td>
                       <td>{s.cnic}</td>
                       <td>{s.phone_no || '—'}</td>
                       <td>{formatMoney(s.salary ?? 0)}</td>
+                      <td>{s.joining_date ? formatDate(s.joining_date) : '—'}</td>
+                      <td>{s.category === 'category_1' ? 'Category 1' : s.category === 'category_2' ? 'Category 2' : '—'}</td>
+                      <td>{s.admin_name || '—'}</td>
                       <td>
                         {hasPerm('staff.edit') && (
                           <button className="btn btn-outline btn-sm" onClick={() => editStaff(s.staff_id)}>

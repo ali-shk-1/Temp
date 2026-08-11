@@ -60,7 +60,15 @@ export async function GET(req: NextRequest) {
 
     const byStudent = new Map<number, Map<string, any>>();
     for (const p of payments) {
-      const key = String(p.academic_month).slice(0, 7);
+      // BUGFIX: academic_month comes back from $queryRaw as a JS Date
+      // object. String(dateObj) produces a human-readable form like
+      // "Wed Apr 01 2026 00:00:00 GMT+0000 (...)", NOT an ISO string —
+      // so the old `String(p.academic_month).slice(0, 7)` produced
+      // "Wed Apr" instead of "2026-04", which never matched any
+      // monthKey and silently dropped every payment from the grid
+      // (always showing dashes even for months with real data).
+      // toISOString().slice(0, 7) gives the correct "YYYY-MM".
+      const key = new Date(p.academic_month).toISOString().slice(0, 7);
       const sid = p.student_id as number;
       if (!byStudent.has(sid)) byStudent.set(sid, new Map());
       byStudent.get(sid)!.set(key, p);

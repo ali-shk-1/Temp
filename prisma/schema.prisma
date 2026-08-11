@@ -127,6 +127,21 @@ model Staff {
   designation    Designation? @relation(fields: [designation_id], references: [id])
   users          User?
 
+  // Added: photo (stored flat at uploads/staff/<cnic>.ext, see
+  // lib/uploads.ts saveStaffPhotoFile), joining date (manually set in the
+  // form, defaults to "now" like admission_date does for students so
+  // existing behavior/required-ness stays consistent), an incremental
+  // pay/grade category (Category 1 / Category 2 — plain string, easy to
+  // extend later without a schema change), and an optional self-relation
+  // so a staff member (e.g. a Teacher) can be marked as reporting to
+  // another staff member with an Admin-type designation.
+  photo_url      String?      @db.VarChar(255)
+  joining_date   DateTime?    @default(now()) @db.Date
+  category       String?      @db.VarChar(20)
+  admin_id       Int?
+  admin          Staff?       @relation("StaffAdmin", fields: [admin_id], references: [staff_id])
+  subordinates   Staff[]      @relation("StaffAdmin")
+
   @@map("staff")
 }
 

@@ -5,6 +5,48 @@ export const allowedClasses = new Set([
   '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
 ]);
 
+/**
+ * Allowed section formats:
+ *   - A single letter: A, B, C
+ *   - A stream prefix + dash + letter: Csc-A, Bio-B, Arts-A, etc.
+ *     (prefix is free-form letters so new streams don't need a code
+ *     change; only the shape — Letters-SingleLetter — is enforced)
+ * Casing is normalized to Title-Case-prefix + dash + uppercase-letter
+ * (e.g. 'csc-a' -> 'Csc-A', 'CSC-A' -> 'Csc-A') so the same section
+ * typed differently always collapses to one canonical stored value —
+ * this is what was causing 'Csc' to get force-uppercased to 'CSC'
+ * (a different, inconsistent value) before.
+ */
+const PLAIN_SECTION_RE = /^[A-Za-z]$/;
+const STREAM_SECTION_RE = /^([A-Za-z]+)-([A-Za-z])$/;
+
+export function isValidSectionFormat(value: unknown): boolean {
+  if (value == null) return false;
+  const raw = String(value).trim();
+  if (!raw) return false;
+  return PLAIN_SECTION_RE.test(raw) || STREAM_SECTION_RE.test(raw);
+}
+
+export function normalizeSectionInput(value: unknown): string | null {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  if (PLAIN_SECTION_RE.test(raw)) {
+    return raw.toUpperCase();
+  }
+
+  const streamMatch = raw.match(STREAM_SECTION_RE);
+  if (streamMatch) {
+    const [, prefix, letter] = streamMatch;
+    const titleCasePrefix = prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase();
+    return `${titleCasePrefix}-${letter.toUpperCase()}`;
+  }
+
+  // Doesn't match either accepted shape.
+  return null;
+}
+
 export function normalizeMonthInput(value: unknown): string | null {
   if (!value) return null;
   const raw = String(value).trim();

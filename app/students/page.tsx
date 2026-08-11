@@ -117,6 +117,8 @@ function StudentsContent() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
+    const clsQ = filterClass.trim().toLowerCase();
+    const secQ = filterSection.trim().toLowerCase();
     const wantBoys = filterBoys;
     const wantGirls = filterGirls;
     const genderNarrowed = wantBoys !== wantGirls;
@@ -124,8 +126,8 @@ function StudentsContent() {
       const name = `${s.first_name} ${s.last_name} ${s.roll_no}`.toLowerCase();
       return (
         (!q || name.includes(q)) &&
-        (!filterClass || s.class === filterClass) &&
-        (!filterSection || s.section === filterSection) &&
+        (!clsQ || (s.class || '').toLowerCase().includes(clsQ)) &&
+        (!secQ || (s.section || '').toLowerCase().includes(secQ)) &&
         (!genderNarrowed || (wantBoys && s.gender === 'male') || (wantGirls && s.gender === 'female'))
       );
     });
@@ -201,7 +203,7 @@ function StudentsContent() {
       last_name: form.last_name.trim(),
       roll_no: form.roll_no ? parseInt(form.roll_no, 10) : null,
       class: form.class.trim(),
-      section: form.section.trim().toUpperCase(),
+      section: form.section.trim(),
       gender: form.gender || null,
       father_name: form.father_name.trim(),
       admission_date: form.admission_date || null,
@@ -215,6 +217,10 @@ function StudentsContent() {
 
     if (!body.first_name || !body.class || !body.section) {
       showToast('Please fill all required fields.', 'error');
+      return;
+    }
+    if (!/^[A-Za-z]$/.test(body.section) && !/^[A-Za-z]+-[A-Za-z]$/.test(body.section)) {
+      showToast('Section must be a single letter (A, B, C) or a stream + letter like Csc-A, Bio-B, Arts-A.', 'error');
       return;
     }
     if (!body.gender) {
@@ -360,11 +366,14 @@ function StudentsContent() {
                 <label>Section *</label>
                 <input
                   type="text"
-                  placeholder="e.g. A"
-                  maxLength={5}
+                  placeholder="A, B, C or Csc-A, Bio-B, Arts-A"
+                  maxLength={10}
                   value={form.section}
                   onChange={(e) => setForm({ ...form, section: e.target.value })}
                 />
+                <small style={{ color: '#666', display: 'block', marginTop: 4 }}>
+                  Enter a single letter (A, B, C) or a stream name + letter (e.g. Csc-A, Bio-B, Arts-A).
+                </small>
               </div>
               <div className="form-group">
                 <label>Gender *</label>
