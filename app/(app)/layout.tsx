@@ -59,6 +59,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
+  // Reset scroll to top on every navigation. Without this, switching
+  // from a long page (e.g. Dashboard scrolled down) to a shorter page
+  // (e.g. Fees) leaves the viewport at its old scroll offset against
+  // the new, differently-laid-out content — reading as content
+  // "jumping"/rearranging even though nothing actually moved; the
+  // scroll position itself was just stale.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
   // Only the very first mount of the authenticated shell (fresh login,
   // hard refresh, or opening a new tab) waits on auth+permissions.
   // Every navigation after that reuses this already-mounted layout.

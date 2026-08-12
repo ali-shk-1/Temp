@@ -718,9 +718,9 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 }
 
 .app-page-transition{
-  animation:app-page-fade-in .18s ease-out;
+  animation:app-page-fade-in .15s ease-out;
 }
 @keyframes app-page-fade-in{
-  from{ opacity:0; transform:translateY(4px); }
-  to{ opacity:1; transform:translateY(0); }
+  from{ opacity:0; }
+  to{ opacity:1; }
 }

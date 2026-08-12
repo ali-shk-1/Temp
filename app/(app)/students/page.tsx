@@ -64,6 +64,7 @@ export default function StudentsPage() {
 
 function StudentsContent() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
 
   const [search, setSearch] = useState('');
@@ -85,6 +86,7 @@ function StudentsContent() {
   const formRef = useRef<HTMLFormElement>(null);
 
   async function loadStudents() {
+    setLoading(true);
     try {
       const res = await api('GET', '/api/students');
       dbg('students raw', res);
@@ -93,6 +95,8 @@ function StudentsContent() {
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -634,7 +638,13 @@ function StudentsContent() {
                 </tr>
               </thead>
               <tbody>
-                {loadFailed ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={12} className="loading">
+                      Loading…
+                    </td>
+                  </tr>
+                ) : loadFailed ? (
                   <tr>
                     <td colSpan={12} className="empty">
                       Failed to load students.
