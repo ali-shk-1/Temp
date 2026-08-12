@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0 -p 3000",
     "seed": "node scripts/seed.js",
     "create:principal": "node scripts/create-principal.js",
     "create:vice-principal": "node scripts/create-vice-principal.js",
