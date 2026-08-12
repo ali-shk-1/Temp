@@ -36,6 +36,27 @@ function formatPaymentDate(d: unknown): string {
   return `${now.getDate()} ${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 }
 
+function formatAcademicMonth(d: unknown): string {
+  // academic_month is a `DATE` column ($db.Date, no time component), so
+  // $queryRaw returns it as a JS Date object -- NOT a "YYYY-MM" string.
+  // The old code did String(d).split('-'), which on a Date object's
+  // default toString() (e.g. "Mon Jun 01 2026 05:00:00 GMT+0500 ...")
+  // produced garbage ("undefined <that whole string>") in receipt
+  // emails. Use UTC components directly, same convention as
+  // formatPaymentDate above, and support a raw "YYYY-MM"/"YYYY-MM-DD"
+  // string as a fallback in case a caller ever passes one directly.
+  if (d instanceof Date && !isNaN(d.getTime())) {
+    return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  }
+  const match = d ? String(d).match(/^(\d{4})-(\d{2})/) : null;
+  if (match) {
+    const [, y, mo] = match;
+    return `${MONTH_NAMES[Number(mo) - 1]} ${y}`;
+  }
+  const now = new Date();
+  return `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+}
+
 function formatCurrency(value: unknown): string {
   return new Intl.NumberFormat('en-PK', {
     style: 'currency',
@@ -194,8 +215,7 @@ export async function POST(req: NextRequest) {
     if (payment) (payment as any).receipt_no = result.receiptNo;
 
     if (payment && payment.email && Number(payment.amount_paid) > 0) {
-      const [amYear, amMonth] = String(payment.academic_month).split('-');
-      const formattedMonth = `${MONTH_NAMES[Number(amMonth) - 1]} ${amYear}`;
+      const formattedMonth = formatAcademicMonth(payment.academic_month);
       const paymentDate = formatPaymentDate(payment.payment_date);
 
       const subject = `Fee Payment Receipt — ${payment.first_name} ${payment.last_name}`;
