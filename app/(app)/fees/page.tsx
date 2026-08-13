@@ -719,8 +719,6 @@ function FeesContent() {
     }
     const SCHOOL_LOGO_URL = new URL('school-logo.png', window.location.href).href;
 
-    const printTimeStr = fmtDateTime(new Date());
-
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -728,28 +726,33 @@ function FeesContent() {
 <title>Fee Receipt — ${d.student_name}</title>
 <style>
   * { box-sizing: border-box; }
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 14mm; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; padding: 0; }
-  .receipt { max-width: 190mm; margin: 0 auto; border: 1px solid #ccc; border-radius: 8px; padding: 24px 28px; }
-  .header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1a1a2e; padding-bottom: 14px; margin-bottom: 18px; }
-  .header img { width: 64px; height: 64px; object-fit: contain; }
-  .receipt-photo { width: 120px; height: 120px; margin: 0 auto 16px; border-radius: 14px; overflow: hidden; border: 1px solid #ddd; }
+  .receipt { max-width: 170mm; margin: 0 auto; border: 1px solid #ccc; border-radius: 8px; padding: 22px 26px; }
+  .header { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #1a1a2e; padding-bottom: 12px; margin-bottom: 16px; }
+  .header img { width: 56px; height: 56px; object-fit: contain; }
+  .receipt-photo { width: 100px; height: 100px; margin: 0 auto 14px; border-radius: 12px; overflow: hidden; border: 1px solid #ddd; }
   .receipt-photo img { width: 100%; height: 100%; object-fit: cover; }
-  .header .school-name { font-size: 20px; font-weight: 700; }
-  .header .sub { font-size: 12px; color: #666; margin-top: 2px; }
-  .title { text-align: center; font-size: 15px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #444; margin-bottom: 18px; }
-  table.info { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 13px; }
+  .header .school-name { font-size: 17px; font-weight: 700; }
+  .header .sub { font-size: 11px; color: #666; margin-top: 2px; }
+  .header .affiliation { font-size: 10px; color: #666; margin-top: 3px; }
+  .title { text-align: center; font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #444; margin-bottom: 16px; }
+  table.info { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12px; }
   table.info td { padding: 5px 4px; vertical-align: top; }
-  table.info td.label { color: #666; width: 130px; }
-  table.fee { width: 100%; border-collapse: collapse; font-size: 13px; }
-  table.fee th, table.fee td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
+  table.info td.label { color: #666; width: 120px; }
+  table.fee { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.fee th, table.fee td { border: 1px solid #ddd; padding: 7px 9px; text-align: left; }
   table.fee th { background: #f0f0f0; color: #555; }
   .paid { color: #2d7a4f; font-weight: 700; }
   .due  { color: #b3261e; font-weight: 700; }
-  .footer { display: flex; justify-content: space-between; margin-top: 40px; font-size: 12px; color: #666; }
-  .footer .sign { border-top: 1px solid #999; width: 160px; text-align: center; padding-top: 4px; }
-  .meta { text-align: right; font-size: 11px; color: #888; margin-top: -6px; margin-bottom: 14px; }
-  .print-time { text-align: right; font-size: 10px; color: #999; margin-top: 6px; }
+  .remarks { margin-top: 14px; font-size: 12px; color: #444; }
+  .remarks .label { color: #666; margin-right: 4px; }
+  .remarks .line { display: inline-block; border-bottom: 1px solid #bbb; min-width: 60%; }
+  .footer { display: flex; justify-content: space-between; margin-top: 56px; font-size: 11px; color: #666; }
+  .footer .sign-block { width: 150px; text-align: center; }
+  .footer .sign-line { border-top: 1px solid #999; padding-top: 4px; }
+  .meta { text-align: right; font-size: 10px; color: #888; margin-top: -5px; margin-bottom: 12px; }
+  .thanks { text-align: center; font-size: 12px; font-weight: 700; color: #444; margin-top: 24px; }
   @media print {
     body { padding: 0; }
     .receipt { border: none; }
@@ -763,6 +766,7 @@ function FeesContent() {
       <div>
         <div class="school-name">${SCHOOL_NAME}</div>
         <div class="sub">Fee Payment Receipt</div>
+        <div class="affiliation">Affiliated with Board of Intermediate and Secondary Education Rawalpindi</div>
       </div>
     </div>
 
@@ -788,10 +792,17 @@ function FeesContent() {
     </table>
 
     <div class="footer">
-      <div class="sign">&nbsp;</div>
-      <div class="sign">Stamp</div>
+      <div class="sign-block">
+        <div class="sign-line">Signature</div>
+      </div>
+      <div class="sign-block">
+        <div class="sign-line">Stamp</div>
+      </div>
     </div>
-    <div class="print-time">Printed: ${printTimeStr}</div>
+
+    <div class="remarks"><span class="label">Remarks:</span><span class="line">&nbsp;</span></div>
+
+    <div class="thanks">Thank you for your payment!</div>
   </div>
   <script>
     window.onload = function () { window.print(); };
