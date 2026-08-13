@@ -135,12 +135,12 @@ node scripts/create-principal.js headmaster MySecurePass123
 
 | Script | Username | Password |
 |---|---|---|
-| `npm run seed` | `admin` | `Admin@123` |
-| `npm run seed` | `principal` | `Principal@123` |
-| `npm run create:ali-viewer` | `ali` | `123#Ali123` |
-| `npm run create:ali-viewer` | `viewer` | `Viewer@123` |
-| `npm run create:vice-principal` | `vp` | `Vp@123` |
-| `npm run create:accountant` | `accountant` | `Acc@123` |
+| `npm run seed` | `admin` | `` |
+| `npm run seed` | `principal` | `` |
+| `npm run create:ali-viewer` | `ali` | `` |
+| `npm run create:ali-viewer` | `viewer` | `` |
+| `npm run create:vice-principal` | `vp` | `` |
+| `npm run create:accountant` | `accountant` | `` |
 
 **Change every one of these passwords after first login** (via
 `POST /api/auth/change-password`, or from the Permissions page as `ali`) —
