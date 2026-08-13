@@ -719,6 +719,8 @@ function FeesContent() {
     }
     const SCHOOL_LOGO_URL = new URL('school-logo.png', window.location.href).href;
 
+    const printTimeStr = fmtDateTime(new Date());
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -726,8 +728,9 @@ function FeesContent() {
 <title>Fee Receipt — ${d.student_name}</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; padding: 30px; }
-  .receipt { max-width: 640px; margin: 0 auto; border: 1px solid #ccc; border-radius: 8px; padding: 24px 28px; }
+  @page { size: A4; margin: 12mm; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; padding: 0; }
+  .receipt { max-width: 190mm; margin: 0 auto; border: 1px solid #ccc; border-radius: 8px; padding: 24px 28px; }
   .header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #1a1a2e; padding-bottom: 14px; margin-bottom: 18px; }
   .header img { width: 64px; height: 64px; object-fit: contain; }
   .receipt-photo { width: 120px; height: 120px; margin: 0 auto 16px; border-radius: 14px; overflow: hidden; border: 1px solid #ddd; }
@@ -746,6 +749,7 @@ function FeesContent() {
   .footer { display: flex; justify-content: space-between; margin-top: 40px; font-size: 12px; color: #666; }
   .footer .sign { border-top: 1px solid #999; width: 160px; text-align: center; padding-top: 4px; }
   .meta { text-align: right; font-size: 11px; color: #888; margin-top: -6px; margin-bottom: 14px; }
+  .print-time { text-align: right; font-size: 10px; color: #999; margin-top: 6px; }
   @media print {
     body { padding: 0; }
     .receipt { border: none; }
@@ -784,9 +788,10 @@ function FeesContent() {
     </table>
 
     <div class="footer">
-      <div class="sign">Received By</div>
+      <div class="sign">&nbsp;</div>
       <div class="sign">Stamp</div>
     </div>
+    <div class="print-time">Printed: ${printTimeStr}</div>
   </div>
   <script>
     window.onload = function () { window.print(); };
