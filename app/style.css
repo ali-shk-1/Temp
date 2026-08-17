@@ -130,7 +130,27 @@ body {
 .stat-card .sub { font-size: 12px; color: #888; margin-top: 3px; }
 
 /* TABLE */
-.table-wrap { overflow-x: auto; }
+.table-wrap {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted, #888) transparent;
+  padding-bottom: 4px;
+}
+.table-wrap::-webkit-scrollbar { height: 12px; }
+.table-wrap::-webkit-scrollbar-track {
+  background: var(--panel-2, rgba(127,127,127,0.08));
+  border-radius: 8px;
+}
+.table-wrap::-webkit-scrollbar-thumb {
+  background: var(--muted, #888);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.table-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--accent, #4f46e5);
+  background-clip: padding-box;
+}
 table { width: 100%; border-collapse: collapse; }
 th {
   background: #f0f0f0;

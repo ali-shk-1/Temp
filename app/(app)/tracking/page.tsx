@@ -8,7 +8,7 @@
  * table straight from the API.
  */
 
-import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import AuthedPage from '@/components/AuthedPage';
 import Avatar from '@/components/Avatar';
 import { api, dbg, formatMoney } from '@/lib/api-client';
@@ -94,6 +94,37 @@ function TrackingContent() {
   const [studentYearMonthKeys, setStudentYearMonthKeys] = useState<string[]>([]);
   const [studentYearLoaded, setStudentYearLoaded] = useState(false);
   const [studentYearLoadFailed, setStudentYearLoadFailed] = useState(false);
+  // Top scrollbar synced to the wide yearly-track table below, so the
+  // scrollbar is visible right under the section title instead of only
+  // at the very bottom of a tall table (easy to miss on desktop).
+  const studentYearTopScrollRef = useRef<HTMLDivElement>(null);
+  const studentYearWrapRef = useRef<HTMLDivElement>(null);
+  const studentYearTableRef = useRef<HTMLTableElement>(null);
+  const [studentYearScrollWidth, setStudentYearScrollWidth] = useState(0);
+  const syncingScrollRef = useRef<'top' | 'bottom' | null>(null);
+
+  useEffect(() => {
+    const table = studentYearTableRef.current;
+    if (!table) return;
+    const update = () => setStudentYearScrollWidth(table.scrollWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(table);
+    return () => ro.disconnect();
+  }, [studentYearMonthKeys, studentYearRows.length]);
+
+  function handleTopScroll() {
+    if (syncingScrollRef.current === 'bottom') { syncingScrollRef.current = null; return; }
+    if (!studentYearTopScrollRef.current || !studentYearWrapRef.current) return;
+    syncingScrollRef.current = 'top';
+    studentYearWrapRef.current.scrollLeft = studentYearTopScrollRef.current.scrollLeft;
+  }
+  function handleBottomScroll() {
+    if (syncingScrollRef.current === 'top') { syncingScrollRef.current = null; return; }
+    if (!studentYearTopScrollRef.current || !studentYearWrapRef.current) return;
+    syncingScrollRef.current = 'bottom';
+    studentYearTopScrollRef.current.scrollLeft = studentYearWrapRef.current.scrollLeft;
+  }
   const [studentTrackSearch, setStudentTrackSearch] = useState({
     roll_no: '',
     name: '',
@@ -546,17 +577,28 @@ function TrackingContent() {
 
           <div className="card">
             <div className="section-title">Student Yearly Track</div>
-            <div className="table-wrap student-year-wrap">
-              <table className="student-year-table">
+            <div
+              className="student-year-top-scroll"
+              ref={studentYearTopScrollRef}
+              onScroll={handleTopScroll}
+            >
+              <div style={{ width: studentYearScrollWidth, height: 1 }} />
+            </div>
+            <div
+              className="table-wrap student-year-wrap"
+              ref={studentYearWrapRef}
+              onScroll={handleBottomScroll}
+            >
+              <table className="student-year-table" ref={studentYearTableRef}>
                 <thead>
                   <tr>
-                    <th rowSpan={2} className="frozen-col frozen-col-1">Sr #</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-2">Photo</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-3">Roll No</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-4">Name</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-5">Father Name</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-6">Class</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-7">Sec</th>
+                    <th rowSpan={2}>Sr #</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-1">Photo</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-2">Roll No</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-3">Name</th>
+                    <th rowSpan={2} className="father-name-col">Father Name</th>
+                    <th rowSpan={2} className="frozen-col frozen-col-4">Class</th>
+                    <th rowSpan={2}>Sec</th>
                     {studentYearMonthKeys.map((key) => (
                       <th key={key} colSpan={3} className="month-group-head">
                         {monthKeyLabel(key)}
@@ -595,17 +637,17 @@ function TrackingContent() {
                   ) : (
                     filteredStudentYearRows.map((s, i) => (
                       <tr key={s.student_id}>
-                        <td className="frozen-col frozen-col-1">{i + 1}</td>
-                        <td className="frozen-col frozen-col-2">
+                        <td>{i + 1}</td>
+                        <td className="frozen-col frozen-col-1">
                           <Avatar src={s.photo_url} name={`${s.first_name || ''} ${s.last_name || ''}`} size={28} />
                         </td>
-                        <td className="frozen-col frozen-col-3">{s.roll_no ?? '—'}</td>
-                        <td className="frozen-col frozen-col-4">
+                        <td className="frozen-col frozen-col-2">{s.roll_no ?? '—'}</td>
+                        <td className="frozen-col frozen-col-3">
                           {s.first_name || ''} {s.last_name || ''}
                         </td>
-                        <td className="frozen-col frozen-col-5">{s.father_name || '—'}</td>
-                        <td className="frozen-col frozen-col-6">{s.class ?? '—'}</td>
-                        <td className="frozen-col frozen-col-7">{s.section ?? '—'}</td>
+                        <td className="father-name-col">{s.father_name || '—'}</td>
+                        <td className="frozen-col frozen-col-4">{s.class ?? '—'}</td>
+                        <td>{s.section ?? '—'}</td>
                         {studentYearMonthKeys.map((key) => {
                           const cell = s.months[key] || { due: 0, paid: 0, date: null };
                           const isShort = cell.due > 0 && cell.paid < cell.due;
@@ -681,15 +723,65 @@ function TrackingContent() {
         }
         .student-year-table .month-group-head {
           border-left: 2px solid var(--border, #e2e2e2);
-          background: var(--card-bg-alt, #f7f7f9);
+          background: var(--th-bg);
+          color: var(--th-text);
         }
         .student-year-table .sub-col {
           border-left: 1px solid var(--border, #eee);
           min-width: 52px;
         }
+        .student-year-top-scroll {
+          overflow-x: auto;
+          overflow-y: hidden;
+          height: 14px;
+          margin-bottom: 2px;
+          scrollbar-width: thin;
+          scrollbar-color: var(--accent, #4f46e5) var(--panel-2, rgba(127,127,127,0.08));
+        }
+        .student-year-top-scroll::-webkit-scrollbar {
+          height: 12px;
+        }
+        .student-year-top-scroll::-webkit-scrollbar-track {
+          background: var(--panel-2, rgba(127,127,127,0.08));
+          border-radius: 8px;
+        }
+        .student-year-top-scroll::-webkit-scrollbar-thumb {
+          background: var(--accent, #4f46e5);
+          border-radius: 8px;
+          border: 3px solid transparent;
+          background-clip: padding-box;
+        }
+        .student-year-top-scroll::-webkit-scrollbar-thumb:hover {
+          background: var(--accent-hover, #4338ca);
+          background-clip: padding-box;
+        }
         .student-year-wrap {
           overflow-x: auto;
           position: relative;
+          /* Firefox */
+          scrollbar-width: thin;
+          scrollbar-color: var(--muted) transparent;
+          padding-bottom: 4px;
+        }
+        /* Chrome/Edge/Safari — a persistently visible, styled horizontal
+           scrollbar so the table is obviously draggable with a mouse
+           (not just via trackpad/touch swipe). */
+        .student-year-wrap::-webkit-scrollbar {
+          height: 12px;
+        }
+        .student-year-wrap::-webkit-scrollbar-track {
+          background: var(--panel-2, rgba(127,127,127,0.08));
+          border-radius: 8px;
+        }
+        .student-year-wrap::-webkit-scrollbar-thumb {
+          background: var(--muted);
+          border-radius: 8px;
+          border: 3px solid transparent;
+          background-clip: padding-box;
+        }
+        .student-year-wrap::-webkit-scrollbar-thumb:hover {
+          background: var(--accent);
+          background-clip: padding-box;
         }
         .student-year-table .frozen-col {
           position: sticky;
@@ -698,17 +790,16 @@ function TrackingContent() {
         }
         .student-year-table thead .frozen-col {
           z-index: 3;
-          background: var(--card-bg-alt, #f7f7f9);
+          background: var(--th-bg);
+          color: var(--th-text);
         }
-        .student-year-table .frozen-col-1 { left: 0; min-width: 40px; }
-        .student-year-table .frozen-col-2 { left: 40px; min-width: 44px; }
-        .student-year-table .frozen-col-3 { left: 84px; min-width: 70px; }
-        .student-year-table .frozen-col-4 { left: 154px; min-width: 150px; text-align: left; }
-        .student-year-table .frozen-col-5 { left: 304px; min-width: 150px; text-align: left; }
-        .student-year-table .frozen-col-6 { left: 454px; min-width: 60px; }
-        .student-year-table .frozen-col-7 {
-          left: 514px;
-          min-width: 50px;
+        .student-year-table .frozen-col-1 { left: 0; min-width: 44px; }
+        .student-year-table .frozen-col-2 { left: 44px; min-width: 70px; }
+        .student-year-table .frozen-col-3 { left: 114px; min-width: 150px; text-align: left; }
+        .student-year-table .father-name-col { min-width: 150px; text-align: left; }
+        .student-year-table .frozen-col-4 {
+          left: 264px;
+          min-width: 60px;
           border-right: 2px solid var(--border, #e2e2e2);
         }
         .student-track-filters {

@@ -235,6 +235,7 @@ function FeesContent() {
   const [payDue, setPayDue] = useState('');
   const [payPaid, setPayPaid] = useState('');
   const [existingPayInfo, setExistingPayInfo] = useState('');
+  const [payRecentHistory, setPayRecentHistory] = useState<FeeRow[]>([]);
   const [showCustomDateGroup, setShowCustomDateGroup] = useState(false);
   const [useCustomDate, setUseCustomDate] = useState(false);
   const [customDate, setCustomDate] = useState(todayStr);
@@ -604,6 +605,7 @@ function FeesContent() {
     setPayDue('');
     setPayPaid('');
     setExistingPayInfo('');
+    setPayRecentHistory([]);
     setPayModalTitle('Record Fee Payment');
     setPaySaveLabel('Record Payment');
     setShowCustomDateGroup(canCustomDateFees());
@@ -658,28 +660,81 @@ function FeesContent() {
     setPayStudentSel(studentId);
     setPayStudentSearch(`Roll ${s.roll_no} — ${s.first_name} ${s.last_name}`);
     setPayResultsOpen(false);
-    onStudentChangeFor(studentId, payMonth);
+    onStudentChangeFor(studentId, payMonth, true);
   }
 
-  async function onStudentChangeFor(id: number | string, month: string) {
+  // Builds the last-4-calendar-months list (most recent first, ending at
+  // `anchorMonth`) as "YYYY-MM" strings — always 4 entries regardless of
+  // whether a payment exists for each one.
+  function lastFourMonths(anchorMonth: string): string[] {
+    const m = String(anchorMonth || monthStr).match(/^(\d{4})-(\d{2})$/);
+    const [y, mo] = m ? [Number(m[1]), Number(m[2])] : [new Date().getFullYear(), new Date().getMonth() + 1];
+    const out: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      let year = y;
+      let month = mo - i;
+      while (month <= 0) {
+        month += 12;
+        year -= 1;
+      }
+      out.push(`${year}-${String(month).padStart(2, '0')}`);
+    }
+    return out;
+  }
+
+  async function onStudentChangeFor(id: number | string, month: string, forceRefresh = false) {
     if (!id) {
       setExistingPayInfo('');
+      setPayRecentHistory([]);
       return;
     }
     try {
       const res = await api('GET', `/api/fees/student/${id}`);
       const data = normalizeList<FeeRow>(res, ['payments', 'fees', 'data']);
-      const existing = data.find((r) => r.academic_month && r.academic_month.slice(0, 7) === month);
+
+      // One row per month (a student can have more than one payment row in
+      // the same month — e.g. installments — so collapse those into a
+      // single summarized row before doing anything else).
+      const byMonth = new Map<string, { academic_month: string; amount_due: number; amount_paid: number }>();
+      data.forEach((r) => {
+        const key = r.academic_month ? String(r.academic_month).slice(0, 7) : '';
+        if (!key) return;
+        const due = +r.amount_due || 0;
+        const paid = +r.amount_paid || 0;
+        const existingRow = byMonth.get(key);
+        if (existingRow) {
+          existingRow.amount_due += due;
+          existingRow.amount_paid += paid;
+        } else {
+          byMonth.set(key, { academic_month: key, amount_due: due, amount_paid: paid });
+        }
+      });
+
+      // Always show the last 4 calendar months (relative to the month
+      // currently selected in the form), one row each, even if some of
+      // them have no payment on record — those show as "No record".
+      const last4 = lastFourMonths(month);
+      const monthRows = last4.map(
+        (key) => byMonth.get(key) || { academic_month: key, amount_due: 0, amount_paid: 0, no_record: true }
+      );
+      setPayRecentHistory(monthRows as unknown as FeeRow[]);
+
+      // Warning banner if a fee record already exists for the month
+      // currently selected in the form.
+      const existing = byMonth.get(month);
       if (existing) {
         setExistingPayInfo(
-          `⚠️ Existing record for this month: Due ${formatMoney(existing.amount_due)}, Paid ${formatMoney(
-            existing.amount_paid
-          )}. New entry will be added.`
+          `⚠️ Fee already submitted for ${monthLabel(existing.academic_month + '-01')}: Due ${formatMoney(
+            existing.amount_due
+          )}, Paid ${formatMoney(existing.amount_paid)}, Balance ${formatMoney(
+            existing.amount_due - existing.amount_paid
+          )}. Submitting again will add another entry for this month.`
         );
       } else {
         setExistingPayInfo('');
       }
     } catch {
+      if (forceRefresh) setPayRecentHistory([]);
       // matches original's empty catch
     }
   }
@@ -1090,7 +1145,16 @@ function FeesContent() {
             </div>
             <div className="form-group">
               <label>Academic Month *</label>
-              <input type="month" value={payMonth} disabled={payMonthDisabled} onChange={(e) => setPayMonth(e.target.value)} />
+              <input
+                type="month"
+                value={payMonth}
+                disabled={payMonthDisabled}
+                onChange={(e) => {
+                  const newMonth = e.target.value;
+                  setPayMonth(newMonth);
+                  if (payStudentSel) onStudentChangeFor(payStudentSel, newMonth);
+                }}
+              />
             </div>
             <div className="form-row">
               <div className="form-group">
@@ -1120,10 +1184,50 @@ function FeesContent() {
               For free students, enter 0 for both Amount Due and Amount Paid.
             </div>
             {existingPayInfo && (
-              <div className="notice-box p-2.5 rounded mb-2.5 text-xs">
+              <div
+                className="p-2.5 rounded mb-2.5 text-xs font-medium"
+                style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-fg)', color: 'var(--danger-text)' }}
+              >
                 {existingPayInfo}
               </div>
-
+            )}
+            {payRecentHistory.length > 0 && (
+              <div className="mb-2.5">
+                <div className="text-muted text-xs mb-1">Last 4 months on record</div>
+                <table className="w-full text-xs" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr className="text-muted text-left">
+                      <th className="py-1 pr-2">Month</th>
+                      <th className="py-1 pr-2">Paid</th>
+                      <th className="py-1 pr-2">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payRecentHistory.map((r: any) => {
+                      const due = +r.amount_due || 0;
+                      const paid = +r.amount_paid || 0;
+                      const balance = due - paid;
+                      const isSelectedMonth = String(r.academic_month) === payMonth;
+                      return (
+                        <tr
+                          key={String(r.academic_month)}
+                          style={isSelectedMonth ? { background: 'var(--danger-bg)', color: 'var(--danger-text)' } : undefined}
+                        >
+                          <td className="py-1 pr-2">{monthLabel(r.academic_month + '-01')}</td>
+                          {r.no_record ? (
+                            <td className="py-1 pr-2 text-muted" colSpan={2}>No record</td>
+                          ) : (
+                            <>
+                              <td className="py-1 pr-2">{formatMoney(paid)}</td>
+                              <td className="py-1 pr-2">{formatMoney(balance)}</td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
             <div className="modal-footer">
               <button type="button" className="btn btn-outline" onClick={closePayModal}>
