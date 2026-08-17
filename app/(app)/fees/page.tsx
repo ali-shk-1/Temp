@@ -73,7 +73,26 @@ interface ReceiptData {
   amount_paid: number;
   balance: number;
   payment_date: Date;
+  total_fee: number | null;
+  discount: number | null;
 }
+
+interface ClassFeeRow {
+  class_fee_id: number;
+  class: string;
+  total_fee: number | string;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
+// Canonical class list for the Total Fee settings page — playgroup/
+// prep/nursery come first (as taught), then grades 1-10. students.class
+// is free text in the DB, so this is just the standard set offered in
+// the "Add" dropdown; any class actually in use can still be added.
+const CLASS_LIST = [
+  'Playgroup', 'Nursery', 'Prep',
+  '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+];
 
 const SCHOOL_NAME = 'AL Siddeeq Model High School Rawalpindi';
 
@@ -141,9 +160,13 @@ function FeesContent() {
   const canDeleteFees = () => hasPerm('fees.delete');
   const canCustomDateFees = () => hasPerm('fees.custom_date');
 
+  const canAddClassFees = () => hasPerm('class-fees.add');
+  const canEditClassFees = () => hasPerm('class-fees.edit');
+  const canDeleteClassFees = () => hasPerm('class-fees.delete');
+
   const [allStudents, setAllStudents] = useState<StudentLite[]>([]);
 
-  const [tab, setTab] = useState<'monthly' | 'daily' | 'monthly-defaulters' | 'history'>('monthly');
+  const [tab, setTab] = useState<'monthly' | 'daily' | 'monthly-defaulters' | 'history' | 'total-fee'>('monthly');
 
   // ---- Stats ----
   const [statCollected, setStatCollected] = useState('—');
@@ -185,6 +208,15 @@ function FeesContent() {
   const [historyLoadFailed, setHistoryLoadFailed] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const historyWrapRef = useRef<HTMLDivElement>(null);
+
+  // ---- Total Fee tab (global per-class fee settings) ----
+  const [classFees, setClassFees] = useState<ClassFeeRow[]>([]);
+  const [classFeesLoaded, setClassFeesLoaded] = useState(false);
+  const [classFeesLoadFailed, setClassFeesLoadFailed] = useState(false);
+  const [newFeeClass, setNewFeeClass] = useState('');
+  const [newFeeAmount, setNewFeeAmount] = useState('');
+  const [editingClassFeeId, setEditingClassFeeId] = useState<number | null>(null);
+  const [editingClassFeeAmount, setEditingClassFeeAmount] = useState('');
 
   // ---- Print mode toggle ----
   const [thermalMode, setThermalMode] = useState(false);
@@ -305,6 +337,86 @@ function FeesContent() {
     }
   }
 
+  async function loadClassFees() {
+    setClassFeesLoadFailed(false);
+    try {
+      const raw = await api('GET', '/api/class-fees');
+      setClassFees(normalizeList<ClassFeeRow>(raw, ['class_fees', 'data']));
+      setClassFeesLoaded(true);
+    } catch {
+      setClassFeesLoadFailed(true);
+      setClassFeesLoaded(true);
+    }
+  }
+
+  async function addClassFee() {
+    const cls = newFeeClass.trim();
+    const amount = parseFloat(newFeeAmount);
+    if (!cls) {
+      showToast('Select a class.', 'error');
+      return;
+    }
+    if (!Number.isFinite(amount) || amount < 0) {
+      showToast('Enter a valid total fee amount.', 'error');
+      return;
+    }
+    try {
+      await api('POST', '/api/class-fees', { class: cls, total_fee: amount });
+      showToast('Total fee saved.', 'success');
+      setNewFeeClass('');
+      setNewFeeAmount('');
+      loadClassFees();
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  function startEditClassFee(row: ClassFeeRow) {
+    setEditingClassFeeId(row.class_fee_id);
+    setEditingClassFeeAmount(String(row.total_fee));
+  }
+  function cancelEditClassFee() {
+    setEditingClassFeeId(null);
+    setEditingClassFeeAmount('');
+  }
+  async function saveEditClassFee(id: number) {
+    const amount = parseFloat(editingClassFeeAmount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      showToast('Enter a valid total fee amount.', 'error');
+      return;
+    }
+    try {
+      await api('PUT', `/api/class-fees/${id}`, { total_fee: amount });
+      showToast('Total fee updated.', 'success');
+      cancelEditClassFee();
+      loadClassFees();
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    }
+  }
+  async function deleteClassFee(id: number) {
+    if (!confirm('Delete the total fee record for this class?')) return;
+    try {
+      await api('DELETE', `/api/class-fees/${id}`);
+      showToast('Total fee record deleted.', 'success');
+      loadClassFees();
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  // Classes not yet configured — offered in the "Add" dropdown.
+  const availableClassesToAdd = useMemo(() => {
+    const used = new Set(classFees.map((c) => c.class));
+    return CLASS_LIST.filter((c) => !used.has(c));
+  }, [classFees]);
+
+  // class_section is stored as e.g. "5-A" / "Nursery-A" — strip the
+  // trailing "-<section>" to get the plain class label for lookups.
+  function baseClassFromSection(classSection: string): string {
+    return classSection.replace(/-[^-]*$/, '');
+  }
+
   useEffect(() => {
     (async () => {
       const isThermal = getPrintMode() === 'thermal';
@@ -314,6 +426,7 @@ function FeesContent() {
       await loadStudents();
       await loadMonthlyRecords();
       loadStats();
+      loadClassFees();
 
       const action = searchParams.get('action');
       if (action === 'record-payment' && hasPerm('fees.add')) {
@@ -343,6 +456,11 @@ function FeesContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historyStudentId]);
 
+  useEffect(() => {
+    if (tab === 'total-fee' && !classFeesLoaded) loadClassFees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   useLiveUpdates({
     'fees.changed': () => {
       loadMonthlyRecords();
@@ -352,6 +470,7 @@ function FeesContent() {
     },
     'students.changed': () => loadStudents(),
     'permissions.changed': () => refreshMyPermissions(() => setPermTick((n) => n + 1)),
+    'class-fees.changed': () => loadClassFees(),
   });
 
   useEffect(() => {
@@ -656,6 +775,12 @@ function FeesContent() {
     const due = +r.amount_due || 0;
     const cumulativePaid = +r.amount_paid || 0;
     const thisPayment = r.this_payment_amount != null ? +r.this_payment_amount : cumulativePaid;
+
+    const classLabel = baseClassFromSection(`${cls || ''}${section ? '-' + section : ''}`) || String(cls || '');
+    const classFeeRow = classFees.find((c) => c.class === classLabel);
+    const totalFee = classFeeRow ? +classFeeRow.total_fee : null;
+    const discount = totalFee != null ? Math.max(0, totalFee - due) : null;
+
     return {
       receipt_no: r.receipt_no ?? r.payment_id ?? '—',
       roll_no: roll_no ?? '—',
@@ -669,6 +794,8 @@ function FeesContent() {
       amount_paid: thisPayment,
       balance: due - cumulativePaid,
       payment_date: r.payment_date ? new Date(r.payment_date) : new Date(),
+      total_fee: totalFee,
+      discount,
     };
   }
 
@@ -745,6 +872,7 @@ function FeesContent() {
   table.fee th { background: #f0f0f0; color: #555; }
   .paid { color: #2d7a4f; font-weight: 700; }
   .due  { color: #b3261e; font-weight: 700; }
+  .discount-note { font-size: 10.5px; color: #b3261e; font-style: italic; margin-top: 6px; }
   .remarks { margin-top: 14px; font-size: 12px; color: #444; }
   .remarks .label { color: #666; margin-right: 4px; }
   .remarks .line { display: inline-block; border-bottom: 1px solid #bbb; min-width: 60%; }
@@ -785,11 +913,15 @@ function FeesContent() {
     <table class="fee">
       <thead><tr><th>Description</th><th>Amount (Rs.)</th></tr></thead>
       <tbody>
-        <tr><td>Amount Due</td><td>${d.amount_due.toLocaleString('en-PK')}</td></tr>
+        ${d.total_fee != null ? `<tr><td>Total Fee</td><td>${d.total_fee.toLocaleString('en-PK')}</td></tr>` : ''}
+        ${d.discount != null && d.discount > 0 ? `<tr><td>Discount</td><td class="paid">-${d.discount.toLocaleString('en-PK')}</td></tr>` : ''}
+        <tr><td>${d.discount != null && d.discount > 0 ? 'Payable after Discount' : 'Amount Due'}</td><td>${d.amount_due.toLocaleString('en-PK')}</td></tr>
         <tr><td>Amount Paid</td><td class="paid">${d.amount_paid.toLocaleString('en-PK')}</td></tr>
         <tr><td>Balance</td><td class="${d.balance > 0 ? 'due' : ''}">${d.balance.toLocaleString('en-PK')}</td></tr>
       </tbody>
     </table>
+
+    ${d.discount != null && d.discount > 0 ? '<div class="discount-note">* This discount is valid for 1 year only.</div>' : ''}
 
     <div class="footer">
       <div class="sign-block">
@@ -846,6 +978,7 @@ function FeesContent() {
   .row span:first-child { color: #333; }
   .title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 4px 0; }
   .amount-paid { font-weight: 700; }
+  .discount-note { font-size: 10px; font-style: italic; margin: 4px 0; }
   .footer { margin-top: 10px; font-size: 10px; text-align: center; }
   .footer .thanks { font-weight: 700; margin-bottom: 2px; }
   @media print { body { padding: 0; } }
@@ -872,10 +1005,13 @@ function FeesContent() {
 
   <div class="title center">Fee Details</div>
   ${row('Month', d.academic_month)}
-  ${row('Amount Due', d.amount_due.toLocaleString('en-PK'))}
+  ${d.total_fee != null ? row('Total Fee', d.total_fee.toLocaleString('en-PK')) : ''}
+  ${d.discount != null && d.discount > 0 ? row('Discount', `-${d.discount.toLocaleString('en-PK')}`) : ''}
+  ${row(d.discount != null && d.discount > 0 ? 'Payable after Discount' : 'Amount Due', d.amount_due.toLocaleString('en-PK'))}
   ${row('Amount Paid', `<span class="amount-paid">${d.amount_paid.toLocaleString('en-PK')}</span>`)}
   ${row('Balance', d.balance.toLocaleString('en-PK'))}
   <div class="divider"></div>
+  ${d.discount != null && d.discount > 0 ? '<div class="discount-note center">* This discount is valid for 1 year only.</div>' : ''}
 
   <div class="footer">
     <div class="thanks">Thank you!</div>
@@ -1101,6 +1237,9 @@ function FeesContent() {
           </button>
           <button className={`tab-btn${tab === 'history' ? ' active' : ''}`} onClick={() => setTab('history')}>
             Student History
+          </button>
+          <button className={`tab-btn${tab === 'total-fee' ? ' active' : ''}`} onClick={() => setTab('total-fee')}>
+            Total Fee
           </button>
         </div>
 
@@ -1597,6 +1736,134 @@ function FeesContent() {
                   <strong className="fee-unpaid">{formatMoney(historyTotals.totalDue - historyTotals.totalPaid)}</strong>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TOTAL FEE TAB (global per-class fee settings) */}
+        {tab === 'total-fee' && (
+          <div>
+            <div className="card mb-3">
+              <div className="text-secondary text-[13px] mb-2">
+                Set the total (full) fee for each class. This is used only to print the discount line on
+                receipts — it does not change monthly Amount Due/Paid/Balance anywhere else.
+              </div>
+              {canAddClassFees() && (
+                <div className="filters">
+                  <select
+                    className="border-input px-2.5 py-[7px] rounded text-[13px]"
+                    value={newFeeClass}
+                    onChange={(e) => setNewFeeClass(e.target.value)}
+                  >
+                    <option value="">Select class…</option>
+                    {availableClassesToAdd.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Total fee (Rs.)"
+                    className="border-input px-2.5 py-[7px] rounded text-[13px] w-[160px]"
+                    value={newFeeAmount}
+                    onChange={(e) => setNewFeeAmount(e.target.value)}
+                  />
+                  <button className="btn btn-success btn-sm" onClick={addClassFee}>
+                    + Add
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="card">
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Class</th>
+                      <th>Total Fee (Rs.)</th>
+                      <th>Last Updated</th>
+                      <th>Updated By</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!classFeesLoaded ? (
+                      <tr>
+                        <td colSpan={6} className="loading">
+                          Loading…
+                        </td>
+                      </tr>
+                    ) : classFeesLoadFailed ? (
+                      <tr>
+                        <td colSpan={6} className="empty">
+                          Failed to load.
+                        </td>
+                      </tr>
+                    ) : classFees.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="empty">
+                          No class total fees configured yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      classFees.map((row, i) => (
+                        <tr key={row.class_fee_id}>
+                          <td>{i + 1}</td>
+                          <td>{row.class}</td>
+                          <td>
+                            {editingClassFeeId === row.class_fee_id ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                autoFocus
+                                className="border-input px-2 py-1 rounded text-[13px] w-[120px]"
+                                value={editingClassFeeAmount}
+                                onChange={(e) => setEditingClassFeeAmount(e.target.value)}
+                              />
+                            ) : (
+                              formatMoney(row.total_fee)
+                            )}
+                          </td>
+                          <td>{row.updated_at ? formatDate(row.updated_at) : '—'}</td>
+                          <td>{row.updated_by || '—'}</td>
+                          <td>
+                            <div className="flex gap-1.5">
+                              {editingClassFeeId === row.class_fee_id ? (
+                                <>
+                                  <button className="btn btn-success btn-sm" onClick={() => saveEditClassFee(row.class_fee_id)}>
+                                    Save
+                                  </button>
+                                  <button className="btn btn-outline btn-sm" onClick={cancelEditClassFee}>
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  {canEditClassFees() && (
+                                    <button className="btn btn-outline btn-sm" onClick={() => startEditClassFee(row)}>
+                                      Edit
+                                    </button>
+                                  )}
+                                  {canDeleteClassFees() && (
+                                    <button className="btn btn-outline btn-sm" onClick={() => deleteClassFee(row.class_fee_id)}>
+                                      Delete
+                                    </button>
+                                  )}
+                                  {!canEditClassFees() && !canDeleteClassFees() && '—'}
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

@@ -108,6 +108,15 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'balance-sheet.delete', label: 'Delete ledger entry' },
     ],
   },
+  {
+    key: 'class-fees',
+    label: 'Total Fee (Fees > Total Fee)',
+    permissions: [
+      { key: 'class-fees.add', label: 'Add class total fee' },
+      { key: 'class-fees.edit', label: 'Edit class total fee' },
+      { key: 'class-fees.delete', label: 'Delete class total fee' },
+    ],
+  },
 ];
 
 export const PERMISSION_KEYS: string[] = PERMISSION_GROUPS.flatMap((g) =>
@@ -168,6 +177,9 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionMap> = {
     'balance-sheet.add': false,
     'balance-sheet.edit': false,
     'balance-sheet.delete': false,
+    'class-fees.add': true,
+    'class-fees.edit': true,
+    'class-fees.delete': false,
   },
   principal: {
     'students.add': true,
@@ -200,6 +212,9 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionMap> = {
     'balance-sheet.add': false,
     'balance-sheet.edit': false,
     'balance-sheet.delete': false,
+    'class-fees.add': true,
+    'class-fees.edit': true,
+    'class-fees.delete': false,
   },
   vice_principal: {
     'students.add': true,
@@ -232,6 +247,9 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionMap> = {
     'balance-sheet.add': false,
     'balance-sheet.edit': false,
     'balance-sheet.delete': false,
+    'class-fees.add': true,
+    'class-fees.edit': true,
+    'class-fees.delete': false,
   },
   accountant: {
     'students.add': false,
@@ -264,6 +282,9 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionMap> = {
     'balance-sheet.add': false,
     'balance-sheet.edit': false,
     'balance-sheet.delete': false,
+    'class-fees.add': true,
+    'class-fees.edit': true,
+    'class-fees.delete': false,
   },
   viewer: {
     'students.add': false,
@@ -296,6 +317,9 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionMap> = {
     'balance-sheet.add': false,
     'balance-sheet.edit': false,
     'balance-sheet.delete': false,
+    'class-fees.add': false,
+    'class-fees.edit': false,
+    'class-fees.delete': false,
   },
 };
 

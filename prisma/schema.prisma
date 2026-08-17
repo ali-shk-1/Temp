@@ -203,6 +203,21 @@ model PaymentReceipt {
   @@map("payment_receipts")
 }
 
+// Global per-class total fee settings, used to compute the "discount"
+// shown on receipts (total_fee - amount_due charged to the student).
+// One row per class label (Playgroup, Nursery, Prep, 1..10, or any
+// other class string in use) — class is free text to match the
+// Student.class column, not an enum.
+model ClassFee {
+  class_fee_id Int      @id @default(autoincrement())
+  class        String   @unique @db.VarChar(20)
+  total_fee    Decimal  @db.Decimal(10, 2)
+  updated_at   DateTime @default(now()) @updatedAt
+  updated_by   String?  @db.VarChar(50)
+
+  @@map("class_fees")
+}
+
 model ExpenseCategory {
   category_id   Int       @id @default(autoincrement())
   category_name String?   @db.VarChar(50)
