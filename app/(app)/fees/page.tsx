@@ -844,6 +844,7 @@ function FeesContent() {
       showToast('Please allow pop-ups to print the receipt.', 'error');
       return;
     }
+    const printedAt = new Date();
     const SCHOOL_LOGO_URL = new URL('school-logo.png', window.location.href).href;
 
     const html = `<!DOCTYPE html>
@@ -899,7 +900,7 @@ function FeesContent() {
     </div>
 
     <div class="title">Fee Receipt</div>
-    <div class="meta">Receipt No: ${d.receipt_no} &nbsp;|&nbsp; Fee Submitted: ${fmtDateTime(d.payment_date)}</div>
+    <div class="meta">Receipt No: ${d.receipt_no} &nbsp;|&nbsp; Fee Submitted: ${fmtDateTime(d.payment_date)} &nbsp;|&nbsp; Printed: ${fmtDateTime(printedAt)}</div>
     ${d.photo_url ? `<div class="receipt-photo"><img src="${d.photo_url}" alt="Student photo" onerror="this.style.display='none'"/></div>` : ''}
     <table class="info">
       <tr><td class="label">Student Name</td><td>${d.student_name}</td>
@@ -955,7 +956,7 @@ function FeesContent() {
       return;
     }
 
-    const row = (label: string, value: string | number) => `<div class="row"><span>${label}</span><span>${value}</span></div>`;
+    const row = (label: string, value: string | number, strong = false) => `<div class="row${strong ? ' strong' : ''}"><span>${label}</span><span>${value}</span></div>`;
 
     const html = `<!DOCTYPE html>
 <html>
@@ -967,27 +968,30 @@ function FeesContent() {
   @page { size: 80mm auto; margin: 0; }
   body {
     font-family: 'Courier New', Consolas, monospace;
-    color: #000; width: 76mm; margin: 0 auto; padding: 6px 4px;
-    font-size: 12px; line-height: 1.5;
+    color: #000; width: 76mm; margin: 0 auto; padding: 14px 4px 6px;
+    font-size: 12px; line-height: 1.5; font-weight: 400;
   }
   .center { text-align: center; }
-  .school-name { font-size: 14px; font-weight: 700; text-transform: uppercase; }
-  .sub { font-size: 10px; margin-top: 2px; }
+  .school-name { font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sub { font-size: 10px; margin-top: 2px; font-weight: 400; }
+  .contact-line { font-size: 10px; margin-top: 3px; color: #444; font-weight: 400; }
   .divider { border-top: 1px dashed #000; margin: 6px 0; }
   .row { display: flex; justify-content: space-between; gap: 8px; }
-  .row span:first-child { color: #333; }
+  .row span:first-child { color: #000; font-weight: 700; }
+  .row span:last-child { font-weight: 400; }
   .title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 4px 0; }
   .amount-paid { font-weight: 700; }
-  .discount-note { font-size: 10px; font-style: italic; margin: 4px 0; }
-  .footer { margin-top: 10px; font-size: 10px; text-align: center; }
+  .discount-note { font-size: 10px; font-style: italic; margin: 4px 0; font-weight: 400; }
+  .footer { margin-top: 10px; font-size: 10px; text-align: center; font-weight: 400; }
   .footer .thanks { font-weight: 700; margin-bottom: 2px; }
-  @media print { body { padding: 0; } }
+  @media print { body { padding: 14px 0 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
 </head>
 <body>
   <div class="center">
     <div class="school-name">${SCHOOL_NAME}</div>
     <div class="sub">Fee Payment Receipt</div>
+    <div class="contact-line">051-4831802 &nbsp; 051-4834045</div>
   </div>
   <div class="divider"></div>
 
