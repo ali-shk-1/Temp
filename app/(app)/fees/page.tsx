@@ -785,6 +785,10 @@ function FeesContent() {
       showToast('Enter a payment amount for a due fee.', 'error');
       return;
     }
+    if (payPaid.trim() === '') {
+      const proceed = confirm('No amount entered for "Amount Paid". Continue with 0?');
+      if (!proceed) return;
+    }
 
     const useCD = canCustomDateFees() && useCustomDate;
     if (useCD && !customDate) {
@@ -1159,11 +1163,11 @@ function FeesContent() {
             <div className="form-row">
               <div className="form-group">
                 <label>Amount Due (Rs.)</label>
-                <input type="number" step="0.01" placeholder="0" value={payDue} onChange={(e) => setPayDue(e.target.value)} />
+                <input type="number" step="0.01" placeholder="0" value={payDue} onChange={(e) => setPayDue(e.target.value)} onWheel={(e) => (e.target as HTMLInputElement).blur()} />
               </div>
               <div className="form-group">
                 <label>Amount Paid (Rs.) *</label>
-                <input type="number" step="0.01" placeholder="0" value={payPaid} onChange={(e) => setPayPaid(e.target.value)} />
+                <input type="number" step="0.01" placeholder="0" value={payPaid} onChange={(e) => setPayPaid(e.target.value)} onWheel={(e) => (e.target as HTMLInputElement).blur()} />
               </div>
             </div>
             {showCustomDateGroup && (
