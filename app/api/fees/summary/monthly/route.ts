@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
   try {
     const month = normalizeMonthInput(req.nextUrl.searchParams.get('month')) || `${new Date().toISOString().slice(0, 7)}-01`;
 
+    // All three figures are on the same basis: the month the fee was
+    // BILLED FOR (academic_month) — i.e. "April's fee", regardless of
+    // which calendar month it was actually paid in.
     const rows = await prisma.$queryRaw<any[]>`
       SELECT
         TO_CHAR(${month}::DATE, 'Month YYYY') AS month_label,
@@ -23,7 +26,7 @@ export async function GET(req: NextRequest) {
         (SELECT COALESCE(SUM(amount_due), 0) FROM fee_payments
           WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${month}::DATE)) AS total_due,
         (SELECT COALESCE(SUM(amount_paid), 0) FROM fee_payments
-          WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', ${month}::DATE)) AS total_paid,
+          WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${month}::DATE)) AS total_paid,
         (SELECT COALESCE(SUM(amount_due - amount_paid), 0) FROM fee_payments
           WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${month}::DATE)) AS total_balance
     `;

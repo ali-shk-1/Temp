@@ -7,8 +7,11 @@ import { normalizeMonthInput } from '@/lib/fees-helpers';
 /* ─────────────────────────────────────────
    GET /api/fees/tracking/monthly?month=YYYY-MM
    Ported from routes/fees.js `GET /tracking/monthly`.
-   Groups fee_payments by the DATE the payment was actually made
-   (payment_date), not the month it was billed for (academic_month).
+
+   This is the "Fee Tracking" (A) view: money actually COLLECTED in this
+   calendar month (payment_date, falling back to academic_month for
+   legacy rows with no payment_date) — regardless of which month's bill
+   it was for.
 ───────────────────────────────────────── */
 export async function GET(req: NextRequest) {
   const auth = authenticate(req);

@@ -26,11 +26,11 @@ export async function GET(req: NextRequest) {
         )::date AS month_date
       ),
       fee_by_month AS (
-        SELECT DATE_TRUNC('month', COALESCE(payment_date, academic_month))::date AS month_date,
+        SELECT DATE_TRUNC('month', academic_month)::date AS month_date,
                SUM(amount_paid) AS fee
         FROM fee_payments
-        WHERE EXTRACT(YEAR FROM COALESCE(payment_date, academic_month)) = ${yearInt}
-        GROUP BY DATE_TRUNC('month', COALESCE(payment_date, academic_month))
+        WHERE EXTRACT(YEAR FROM academic_month) = ${yearInt}
+        GROUP BY DATE_TRUNC('month', academic_month)
       ),
       expense_by_month AS (
         SELECT DATE_TRUNC('month', created_at)::date AS month_date,

@@ -7,6 +7,12 @@ import { handleApiError } from '@/lib/apiHandler';
    GET /api/fees/tracking/yearly?year=YYYY
    Ported from routes/fees.js `GET /tracking/yearly`.
    One row per month with student-count + totals, for the year toggle view.
+
+   This is the "Fee Tracking" (A) view: money actually COLLECTED in each
+   calendar month (grouped by payment_date, falling back to
+   academic_month for legacy rows with no payment_date), regardless of
+   which month's bill it was for. Student count is also based on who
+   paid something in that month, not who was billed for it.
 ───────────────────────────────────────── */
 export async function GET(req: NextRequest) {
   const auth = authenticate(req);

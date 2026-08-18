@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const year = req.nextUrl.searchParams.get('year') || String(new Date().getFullYear());
 
+    // Grouped by the month the fee was BILLED FOR (academic_month).
     const rows = await prisma.$queryRaw<any[]>`
       SELECT
         TO_CHAR(academic_month, 'Mon YYYY') AS month_label,
