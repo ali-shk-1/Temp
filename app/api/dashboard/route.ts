@@ -33,18 +33,18 @@ export async function GET(req: NextRequest) {
     ] = await Promise.all([
       prisma.$queryRaw<{ total: bigint }[]>`SELECT COUNT(*) AS total FROM students`,
       prisma.$queryRaw<{ total: bigint }[]>`SELECT COUNT(*) AS total FROM staff`,
-      // "Fee Collected (Month)" here is tied to academic_month — the fee
-      // period the charge is FOR — so both total_due and total_paid are
-      // "this month's bill", regardless of which calendar month it was
-      // actually paid in.
+      // "Fee Collected (Month)" is tied to payment_date (falling back to
+      // academic_month for legacy rows with no payment_date) — i.e. money
+      // actually DEPOSITED this calendar month, regardless of which
+      // month's bill it was for.
       prisma.$queryRaw<{ total_due: string; total_paid: string }[]>`
         SELECT COALESCE((
                  SELECT SUM(amount_due) FROM fee_payments
-                 WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${currentMonth}::DATE)
+                 WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', ${currentMonth}::DATE)
                ), 0) AS total_due,
                COALESCE((
                  SELECT SUM(amount_paid) FROM fee_payments
-                 WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${currentMonth}::DATE)
+                 WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', ${currentMonth}::DATE)
                ), 0) AS total_paid
       `,
       prisma.$queryRaw<{ total_expenses: string }[]>`
@@ -60,14 +60,15 @@ export async function GET(req: NextRequest) {
           AND fp.amount_due > 0
           AND fp.amount_paid < fp.amount_due
       `,
-      // "monthly_fees" chart: fee BILLED per month (academic_month).
+      // "monthly_fees" chart: fee DEPOSITED per calendar month
+      // (payment_date, falling back to academic_month for legacy rows).
       prisma.$queryRaw<{ month: string; collected: string }[]>`
-        SELECT TO_CHAR(academic_month, 'Mon') AS month,
+        SELECT TO_CHAR(COALESCE(payment_date, academic_month), 'Mon') AS month,
                SUM(amount_paid) AS collected
         FROM fee_payments
-        WHERE EXTRACT(YEAR FROM academic_month) = ${currentYear}
-        GROUP BY DATE_TRUNC('month', academic_month), TO_CHAR(academic_month, 'Mon')
-        ORDER BY DATE_TRUNC('month', academic_month)
+        WHERE EXTRACT(YEAR FROM COALESCE(payment_date, academic_month)) = ${currentYear}
+        GROUP BY DATE_TRUNC('month', COALESCE(payment_date, academic_month)), TO_CHAR(COALESCE(payment_date, academic_month), 'Mon')
+        ORDER BY DATE_TRUNC('month', COALESCE(payment_date, academic_month))
       `,
       prisma.$queryRaw<{ month: string; spent: string }[]>`
         SELECT TO_CHAR(created_at, 'Mon') AS month,

@@ -8,8 +8,7 @@
  * table straight from the API.
  */
 
-import { Fragment, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import AuthedPage from '@/components/AuthedPage';
 import Avatar from '@/components/Avatar';
 import { api, dbg, formatMoney } from '@/lib/api-client';
@@ -77,76 +76,18 @@ const currentMonthStr = nowStr.slice(0, 7);
 const currentYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
-export default function TrackingPage() {
+export default function MonthlyFeePage() {
   return (
-    <AuthedPage activePage="tracking">
-      <Suspense fallback={null}>
-        <TrackingContent />
-      </Suspense>
+    <AuthedPage activePage="fees">
+      <TrackingContent />
     </AuthedPage>
   );
 }
 
-function isTrackMode(v: string | null): v is 'fee' | 'student' {
-  return v === 'fee' || v === 'student';
-}
-function isPeriod(v: string | null): v is 'month' | 'year' {
-  return v === 'month' || v === 'year';
-}
-
 function TrackingContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-
   const [permTick, setPermTick] = useState(0);
-
-  const initialModeParam = searchParams.get('mode');
-  const initialPeriodParam = searchParams.get('period');
-  const [isYear, setIsYearState] = useState(isPeriod(initialPeriodParam) ? initialPeriodParam === 'year' : false);
-  const [trackMode, setTrackModeState] = useState<'fee' | 'student'>(
-    isTrackMode(initialModeParam) ? initialModeParam : 'student'
-  );
-
-  // Keep ?mode= and ?period= in sync with the two toggles so the chosen
-  // view (Fee/Student tracking, Month/Year) survives a refresh and is
-  // shareable/bookmarkable, same pattern as the Fees page tabs.
-  function updateParams(next: { mode?: 'fee' | 'student'; period?: 'month' | 'year' }) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next.mode !== undefined) {
-      if (next.mode === 'student') params.delete('mode');
-      else params.set('mode', next.mode);
-    }
-    if (next.period !== undefined) {
-      if (next.period === 'month') params.delete('period');
-      else params.set('period', next.period);
-    }
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }
-
-  function setTrackMode(next: 'fee' | 'student') {
-    setTrackModeState(next);
-    updateParams({ mode: next });
-  }
-
-  function setIsYear(next: boolean) {
-    setIsYearState(next);
-    updateParams({ period: next ? 'year' : 'month' });
-  }
-
-  // Keep state in sync when the URL changes from outside our own setters
-  // (browser back/forward, or landing directly on a specific mode/period).
-  useEffect(() => {
-    const urlMode = searchParams.get('mode');
-    const resolvedMode: 'fee' | 'student' = isTrackMode(urlMode) ? urlMode : 'student';
-    setTrackModeState((current) => (current === resolvedMode ? current : resolvedMode));
-
-    const urlPeriod = searchParams.get('period');
-    const resolvedYear = isPeriod(urlPeriod) ? urlPeriod === 'year' : false;
-    setIsYearState((current) => (current === resolvedYear ? current : resolvedYear));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  const [isYear, setIsYear] = useState(false);
+  const [trackMode, setTrackMode] = useState<'fee' | 'student'>('student');
 
   const STUDENT_TRACK_SESSION_START_YEAR = 2026;
   const [studentYearRows, setStudentYearRows] = useState<StudentYearRow[]>([]);

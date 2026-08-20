@@ -8,11 +8,10 @@ import { handleApiError } from '@/lib/apiHandler';
    Ported from routes/fees.js `GET /tracking/yearly`.
    One row per month with student-count + totals, for the year toggle view.
 
-   This is the "Fee Tracking" (A) view: money actually COLLECTED in each
-   calendar month (grouped by payment_date, falling back to
-   academic_month for legacy rows with no payment_date), regardless of
-   which month's bill it was for. Student count is also based on who
-   paid something in that month, not who was billed for it.
+   This is the "Fee Tracking" (A) view: bills FOR each calendar month
+   (academic_month), regardless of which month it was actually paid in.
+   Student count is based on who was billed for that month, not who
+   happened to pay something in it.
 ───────────────────────────────────────── */
 export async function GET(req: NextRequest) {
   const auth = authenticate(req);
@@ -31,13 +30,13 @@ export async function GET(req: NextRequest) {
         (total_due - total_paid) AS total_balance
       FROM (
         SELECT
-          DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month)) AS month_date,
+          DATE_TRUNC('month', fp.academic_month) AS month_date,
           COUNT(DISTINCT fp.student_id) AS student_count,
           SUM(fp.amount_due)  AS total_due,
           SUM(fp.amount_paid) AS total_paid
         FROM fee_payments fp
-        WHERE EXTRACT(YEAR FROM COALESCE(fp.payment_date, fp.academic_month)) = ${parseInt(year, 10)}
-        GROUP BY DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month))
+        WHERE EXTRACT(YEAR FROM fp.academic_month) = ${parseInt(year, 10)}
+        GROUP BY DATE_TRUNC('month', fp.academic_month)
       ) t
       ORDER BY month_date
     `;

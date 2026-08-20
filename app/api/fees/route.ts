@@ -218,6 +218,22 @@ export async function POST(req: NextRequest) {
       const formattedMonth = formatAcademicMonth(payment.academic_month);
       const paymentDate = formatPaymentDate(payment.payment_date);
 
+      // Mirror the printed receipt's Total Fee / Discount logic exactly
+      // (see normalizeReceiptData in app/(app)/fees/page.tsx): the class's
+      // configured total_fee minus this month's amount_due (never negative).
+      // class is looked up base (without section) same as the UI's
+      // baseClassFromSection, since class_fees.class is section-less.
+      const baseClass = String(payment.class || '').replace(/-[^-]*$/, '');
+      const classFeeRow = baseClass
+        ? await prisma.$queryRaw<{ total_fee: any }[]>`
+            SELECT total_fee FROM class_fees WHERE class = ${baseClass} LIMIT 1
+          `
+        : [];
+      const totalFee = classFeeRow.length ? Number(classFeeRow[0].total_fee) : null;
+      const due = Number(payment.amount_due) || 0;
+      const discount = totalFee != null ? Math.max(0, totalFee - due) : null;
+      const hasDiscount = discount != null && discount > 0;
+
       const subject = `Fee Payment Receipt — ${payment.first_name} ${payment.last_name}`;
       const html = `
         <div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5;">
@@ -225,19 +241,46 @@ export async function POST(req: NextRequest) {
           <p>Dear ${payment.first_name} ${payment.last_name},</p>
           <p>Thank you for your fee payment. Below are the details for the payment recorded for <strong>${formattedMonth}</strong>:</p>
           <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+            <tr><td style="padding:8px;border:1px solid #ddd;">Receipt No.</td><td style="padding:8px;border:1px solid #ddd;">${payment.receipt_no ?? '—'}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Student Name</td><td style="padding:8px;border:1px solid #ddd;">${payment.first_name} ${payment.last_name}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Roll No.</td><td style="padding:8px;border:1px solid #ddd;">${payment.roll_no}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Class / Section</td><td style="padding:8px;border:1px solid #ddd;">${payment.class} / ${payment.section}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Father's Name</td><td style="padding:8px;border:1px solid #ddd;">${payment.father_name || '—'}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">Contact</td><td style="padding:8px;border:1px solid #ddd;">${payment.contact_1 || '—'}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Payment Date</td><td style="padding:8px;border:1px solid #ddd;">${paymentDate}</td></tr>
+          </table>
+          <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+            ${totalFee != null ? `<tr><td style="padding:8px;border:1px solid #ddd;">Total Fee</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(totalFee)}</td></tr>` : ''}
+            ${hasDiscount ? `<tr><td style="padding:8px;border:1px solid #ddd;">Discount</td><td style="padding:8px;border:1px solid #ddd;color:#2d7a4f;">-${formatCurrency(discount)}</td></tr>` : ''}
+            <tr><td style="padding:8px;border:1px solid #ddd;">${hasDiscount ? 'Payable after Discount' : `Amount Due (${formattedMonth})`}</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_due)}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">This Payment</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.this_payment_amount)}</td></tr>
-            <tr><td style="padding:8px;border:1px solid #ddd;">Amount Due (${formattedMonth})</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_due)}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Total Paid (${formattedMonth})</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.amount_paid)}</td></tr>
             <tr><td style="padding:8px;border:1px solid #ddd;">Balance</td><td style="padding:8px;border:1px solid #ddd;">${formatCurrency(payment.balance)}</td></tr>
           </table>
+          ${hasDiscount ? '<p style="margin-top:8px;font-size:12px;color:#b3261e;font-style:italic;">* This discount is valid for 1 year only.</p>' : ''}
           <p style="margin-top:16px;">If you have any questions or need further assistance, please contact the school office.</p>
           <p style="margin-top:8px;">Sincerely,<br/>School Administration</p>
         </div>`;
-      const text = `Fee Payment Receipt\n\nStudent: ${payment.first_name} ${payment.last_name}\nRoll No: ${payment.roll_no}\nClass/Section: ${payment.class} / ${payment.section}\nPayment Date: ${paymentDate}\nThis Payment: ${formatCurrency(payment.this_payment_amount)}\nAmount Due (${formattedMonth}): ${formatCurrency(payment.amount_due)}\nTotal Paid (${formattedMonth}): ${formatCurrency(payment.amount_paid)}\nBalance: ${formatCurrency(payment.balance)}\n\nThank you for your payment.`;
+      const text = [
+        'Fee Payment Receipt',
+        '',
+        `Receipt No: ${payment.receipt_no ?? '—'}`,
+        `Student: ${payment.first_name} ${payment.last_name}`,
+        `Roll No: ${payment.roll_no}`,
+        `Class/Section: ${payment.class} / ${payment.section}`,
+        `Father's Name: ${payment.father_name || '—'}`,
+        `Contact: ${payment.contact_1 || '—'}`,
+        `Payment Date: ${paymentDate}`,
+        '',
+        totalFee != null ? `Total Fee: ${formatCurrency(totalFee)}` : null,
+        hasDiscount ? `Discount: -${formatCurrency(discount)}` : null,
+        `${hasDiscount ? 'Payable after Discount' : `Amount Due (${formattedMonth})`}: ${formatCurrency(payment.amount_due)}`,
+        `This Payment: ${formatCurrency(payment.this_payment_amount)}`,
+        `Total Paid (${formattedMonth}): ${formatCurrency(payment.amount_paid)}`,
+        `Balance: ${formatCurrency(payment.balance)}`,
+        '',
+        'Thank you for your payment.',
+      ].filter((l) => l !== null).join('\n');
 
       sendMail({ to: payment.email, subject, text, html }).catch((err) =>
         console.warn('Email send failed:', err.message)
@@ -269,7 +312,10 @@ export async function GET(req: NextRequest) {
     const conditions: Prisma.Sql[] = [];
     if (month) {
       const normalizedMonth = normalizeMonthInput(month) || month;
-      conditions.push(Prisma.sql`AND DATE_TRUNC('month', fp.academic_month) = DATE_TRUNC('month', ${normalizedMonth}::DATE)`);
+      // Monthly Records is on the DEPOSITED basis (payment_date, falling
+      // back to academic_month for legacy rows with no payment_date) —
+      // "money that came in this month", not "bills for this month".
+      conditions.push(Prisma.sql`AND DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month)) = DATE_TRUNC('month', ${normalizedMonth}::DATE)`);
     }
     if (cls) conditions.push(Prisma.sql`AND s.class = ${cls}`);
     if (gender) conditions.push(Prisma.sql`AND s.gender = ${gender}`);
@@ -286,6 +332,13 @@ export async function GET(req: NextRequest) {
       ? Prisma.join(conditions, ' ', ' ')
       : Prisma.empty;
 
+    // Grouped by the deposited month (payment_date, falling back to
+    // academic_month) rather than the bill month, so a payment made in
+    // July for June's bill is grouped — and filtered — under July.
+    // academic_month is still returned per group (a student could in
+    // theory have paid for more than one bill-month within the same
+    // deposited month, so it's kept in the GROUP BY to avoid collapsing
+    // those into one misleading row).
     const rows = await prisma.$queryRaw<any[]>`
       SELECT
         MAX(fp.payment_id) AS payment_id,
@@ -302,7 +355,7 @@ export async function GET(req: NextRequest) {
       ${whereExtra}
       GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month), s.roll_no,
                s.first_name, s.last_name, s.class, s.section, s.photo_url, s.gender
-      ORDER BY DATE_TRUNC('month', fp.academic_month) DESC, s.class, s.section, s.roll_no
+      ORDER BY MAX(COALESCE(fp.payment_date, fp.academic_month)) DESC, s.class, s.section, s.roll_no
     `;
 
     const shaped = rows.map((r) => ({

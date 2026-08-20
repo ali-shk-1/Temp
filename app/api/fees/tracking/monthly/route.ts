@@ -8,10 +8,9 @@ import { normalizeMonthInput } from '@/lib/fees-helpers';
    GET /api/fees/tracking/monthly?month=YYYY-MM
    Ported from routes/fees.js `GET /tracking/monthly`.
 
-   This is the "Fee Tracking" (A) view: money actually COLLECTED in this
-   calendar month (payment_date, falling back to academic_month for
-   legacy rows with no payment_date) — regardless of which month's bill
-   it was for.
+   This is the "Fee Tracking" (A) view: bills FOR this month
+   (academic_month) — i.e. "who owed June's fee and how much of it has
+   been paid", regardless of which calendar month it was actually paid in.
 ───────────────────────────────────────── */
 export async function GET(req: NextRequest) {
   const auth = authenticate(req);
@@ -30,7 +29,7 @@ export async function GET(req: NextRequest) {
         s.roll_no, s.first_name, s.last_name, s.class, s.section, s.gender, s.father_name, s.photo_url
       FROM fee_payments fp
       JOIN students s ON s.student_id = fp.student_id
-      WHERE DATE_TRUNC('month', COALESCE(fp.payment_date, fp.academic_month)) = DATE_TRUNC('month', ${month}::DATE)
+      WHERE DATE_TRUNC('month', fp.academic_month) = DATE_TRUNC('month', ${month}::DATE)
       GROUP BY fp.student_id, DATE_TRUNC('month', fp.academic_month), s.roll_no,
                s.first_name, s.last_name, s.class, s.section, s.gender, s.father_name, s.photo_url
       ORDER BY s.class, s.section, s.roll_no, academic_month

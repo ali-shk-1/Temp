@@ -8,6 +8,10 @@ import { handleApiError } from '@/lib/apiHandler';
    Ported from routes/fees.js `GET /balance-sheet/yearly`.
    One row per MONTH; each month's totals are independent (do NOT
    accumulate across months, same as monthly view resetting each month).
+
+   Fee income here is on the DEPOSITED basis (payment_date, falling back
+   to academic_month for legacy rows with no payment_date) — real cash
+   received that month, not which month's bill it was for.
 ───────────────────────────────────────── */
 export async function GET(req: NextRequest) {
   const auth = authenticate(req);
@@ -26,11 +30,11 @@ export async function GET(req: NextRequest) {
         )::date AS month_date
       ),
       fee_by_month AS (
-        SELECT DATE_TRUNC('month', academic_month)::date AS month_date,
+        SELECT DATE_TRUNC('month', COALESCE(payment_date, academic_month))::date AS month_date,
                SUM(amount_paid) AS fee
         FROM fee_payments
-        WHERE EXTRACT(YEAR FROM academic_month) = ${yearInt}
-        GROUP BY DATE_TRUNC('month', academic_month)
+        WHERE EXTRACT(YEAR FROM COALESCE(payment_date, academic_month)) = ${yearInt}
+        GROUP BY DATE_TRUNC('month', COALESCE(payment_date, academic_month))
       ),
       expense_by_month AS (
         SELECT DATE_TRUNC('month', created_at)::date AS month_date,

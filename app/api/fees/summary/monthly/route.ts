@@ -15,20 +15,21 @@ export async function GET(req: NextRequest) {
   try {
     const month = normalizeMonthInput(req.nextUrl.searchParams.get('month')) || `${new Date().toISOString().slice(0, 7)}-01`;
 
-    // All three figures are on the same basis: the month the fee was
-    // BILLED FOR (academic_month) — i.e. "April's fee", regardless of
-    // which calendar month it was actually paid in.
+    // All three figures are on the same basis: the calendar month the fee
+    // was actually DEPOSITED (payment_date, falling back to
+    // academic_month for legacy rows with no payment_date) — i.e. "money
+    // that came in during April", regardless of which month's bill it was.
     const rows = await prisma.$queryRaw<any[]>`
       SELECT
         TO_CHAR(${month}::DATE, 'Month YYYY') AS month_label,
         (SELECT COUNT(*) FROM fee_payments
-          WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${month}::DATE)) AS payment_count,
+          WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', ${month}::DATE)) AS payment_count,
         (SELECT COALESCE(SUM(amount_due), 0) FROM fee_payments
-          WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${month}::DATE)) AS total_due,
+          WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', ${month}::DATE)) AS total_due,
         (SELECT COALESCE(SUM(amount_paid), 0) FROM fee_payments
-          WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${month}::DATE)) AS total_paid,
+          WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', ${month}::DATE)) AS total_paid,
         (SELECT COALESCE(SUM(amount_due - amount_paid), 0) FROM fee_payments
-          WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${month}::DATE)) AS total_balance
+          WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', ${month}::DATE)) AS total_balance
     `;
 
     const row = rows[0];

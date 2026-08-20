@@ -17,7 +17,7 @@
  */
 
 import { Fragment, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import AuthedPage from '@/components/AuthedPage';
 import Avatar from '@/components/Avatar';
 import { api, apiForm as _apiForm, bindPanelKeyboardNavigation, dbg, formatDate, formatMoney, normalizeList } from '@/lib/api-client';
@@ -112,6 +112,16 @@ function monthLabel(dateStr?: string | null): string {
   return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
 }
 
+// Abbreviated month ("Aug 2026") — used where space is tight (e.g. the
+// Fee Month badge) so it stays on one line instead of wrapping.
+function monthLabelShort(dateStr?: string | null): string {
+  if (!dateStr) return '—';
+  const m = String(dateStr).match(/^(\d{4})-(\d{2})/);
+  if (!m) return '—';
+  const [, year, month] = m;
+  return `${MONTH_NAMES[Number(month) - 1].slice(0, 3)} ${year}`;
+}
+
 function fmtDateTime(dt: Date): string {
   const datePart = dt.toLocaleDateString('en-GB');
   const timePart = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -151,8 +161,17 @@ export default function FeesPage() {
   );
 }
 
+const FEE_TABS = ['monthly', 'daily', 'monthly-defaulters', 'history', 'total-fee'] as const;
+type FeeTab = (typeof FEE_TABS)[number];
+
+function isFeeTab(v: string | null): v is FeeTab {
+  return !!v && (FEE_TABS as readonly string[]).includes(v);
+}
+
 function FeesContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [permTick, setPermTick] = useState(0);
   const canAddFees = () => hasPerm('fees.add');
@@ -166,7 +185,24 @@ function FeesContent() {
 
   const [allStudents, setAllStudents] = useState<StudentLite[]>([]);
 
-  const [tab, setTab] = useState<'monthly' | 'daily' | 'monthly-defaulters' | 'history' | 'total-fee'>('monthly');
+  const initialTabParam = searchParams.get('tab');
+  const [tab, setTabState] = useState<FeeTab>(isFeeTab(initialTabParam) ? initialTabParam : 'monthly');
+
+  // Keep the URL's ?tab= in sync with the active tab so it's shareable /
+  // bookmarkable and survives back/forward navigation. Uses replace (not
+  // push) so switching tabs doesn't spam browser history, and preserves
+  // any other existing query params (e.g. ?action=...).
+  function setTab(next: FeeTab) {
+    setTabState(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'monthly') {
+      params.delete('tab');
+    } else {
+      params.set('tab', next);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   // ---- Stats ----
   const [statCollected, setStatCollected] = useState('—');
@@ -418,6 +454,16 @@ function FeesContent() {
     return classSection.replace(/-[^-]*$/, '');
   }
 
+  // Keep tab state in sync when the URL's ?tab= changes from outside a
+  // setTab() call (e.g. browser back/forward, or an external link landing
+  // directly on a specific tab).
+  useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    const resolved: FeeTab = isFeeTab(urlTab) ? urlTab : 'monthly';
+    setTabState((current) => (current === resolved ? current : resolved));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   useEffect(() => {
     (async () => {
       const isThermal = getPrintMode() === 'thermal';
@@ -499,6 +545,12 @@ function FeesContent() {
   const deferredDefSearch = useDeferredValue(defSearch);
 
   // ---------------- Monthly tab filtering ----------------
+  const monthlyTableTitle = useMemo(() => {
+    const [y, m] = monthFilter.split('-');
+    if (!y || !m) return 'Students Who Deposited Their Fee';
+    return `Students Who Deposited Their Fee In ${MONTH_NAMES[Number(m) - 1]} ${y}`;
+  }, [monthFilter]);
+
   const filteredMonthly = useMemo(() => {
     const q = deferredFeeSearch.toLowerCase().trim();
     let list = monthlyData;
@@ -941,6 +993,7 @@ function FeesContent() {
   .footer .sign-line { border-top: 1px solid #999; padding-top: 4px; }
   .meta { text-align: right; font-size: 10px; color: #888; margin-top: -5px; margin-bottom: 12px; }
   .thanks { text-align: center; font-size: 12px; font-weight: 700; color: #444; margin-top: 24px; }
+  .credit { text-align: center; font-size: 8px; color: #999; margin-top: 6px; }
   @media print {
     body { padding: 0; }
     .receipt { border: none; }
@@ -995,6 +1048,7 @@ function FeesContent() {
     <div class="remarks"><span class="label">Remarks:</span><span class="line">&nbsp;</span></div>
 
     <div class="thanks">Thank you for your payment!</div>
+    <div class="credit">Software provided by www.alixtech.vercel.app &nbsp;|&nbsp; 0310-5203080</div>
   </div>
   <script>
     window.onload = function () { window.print(); };
@@ -1039,10 +1093,12 @@ function FeesContent() {
   .row span:first-child { color: #000; font-weight: 700; }
   .row span:last-child { font-weight: 400; }
   .title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 4px 0; }
-  .amount-paid { font-weight: 700; }
+  .amount-paid { font-weight: 700 !important; }
+  .strong-value { font-weight: 700 !important; }
   .discount-note { font-size: 10px; font-style: italic; margin: 4px 0; font-weight: 400; }
   .footer { margin-top: 10px; font-size: 10px; text-align: center; font-weight: 400; }
   .footer .thanks { font-weight: 700; margin-bottom: 2px; }
+  .footer .credit { font-size: 8px; color: #555; margin-top: 6px; }
   @media print { body { padding: 14px 0 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
 </head>
@@ -1060,10 +1116,10 @@ function FeesContent() {
   <div class="divider"></div>
 
   <div class="title center">Student Details</div>
-  ${row('Name', d.student_name)}
+  ${row('Name', `<span class="strong-value">${d.student_name}</span>`)}
   ${row('Roll No.', d.roll_no)}
   ${row('Class', d.class_section)}
-  ${row('Father', d.father_name)}
+  ${row('Father Name', d.father_name)}
   <div class="divider"></div>
 
   <div class="title center">Fee Details</div>
@@ -1079,6 +1135,7 @@ function FeesContent() {
   <div class="footer">
     <div class="thanks">Thank you!</div>
     <div>Stamp</div>
+    <div class="credit">Software provided by www.alixtech.vercel.app<br/>0310-5203080</div>
   </div>
   <script>
     window.onload = function () { window.print(); };
@@ -1401,6 +1458,7 @@ function FeesContent() {
               </div>
             </div>
             <div className="card">
+              <div className="section-title">{monthlyTableTitle}</div>
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -1411,6 +1469,7 @@ function FeesContent() {
                       <th>Student</th>
                       <th>Class</th>
                       <th>Section</th>
+                      <th>Fee Month</th>
                       <th>Due</th>
                       <th>Paid</th>
                       <th>Balance</th>
@@ -1422,13 +1481,13 @@ function FeesContent() {
                   <tbody>
                     {monthlyLoadFailed ? (
                       <tr>
-                        <td colSpan={12} className="empty">
+                        <td colSpan={13} className="empty">
                           Failed to load.
                         </td>
                       </tr>
                     ) : filteredMonthly.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="empty">
+                        <td colSpan={13} className="empty">
                           No records found.
                         </td>
                       </tr>
@@ -1464,6 +1523,9 @@ function FeesContent() {
                             </td>
                             <td>{r.class}</td>
                             <td>{r.section}</td>
+                            <td>
+                              <span className="badge badge-info whitespace-nowrap">{monthLabelShort(r.academic_month)}</span>
+                            </td>
                             <td>{formatMoney(due)}</td>
                             <td className={paid >= due ? 'fee-paid' : paid > 0 ? 'fee-partial' : 'fee-unpaid'}>{formatMoney(paid)}</td>
                             <td>{bal > 0 ? formatMoney(bal) : '—'}</td>

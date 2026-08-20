@@ -9,6 +9,12 @@ import { normalizeMonthInput } from '@/lib/fees-helpers';
    Ported from routes/fees.js `GET /balance-sheet/monthly`.
    One row per DAY within the given month, running totals reset at the
    start of that month.
+
+   Fee income here is on the DEPOSITED basis (payment_date, falling back
+   to academic_month for legacy rows with no payment_date) — real cash
+   received that day, not which month's bill it was for. This matches
+   expenses (already dated by created_at), so the balance is a true
+   day-by-day cash-flow figure.
 ───────────────────────────────────────── */
 export async function GET(req: NextRequest) {
   const auth = authenticate(req);
@@ -26,11 +32,11 @@ export async function GET(req: NextRequest) {
         )::date AS day
       ),
       fee_by_day AS (
-        SELECT DATE(academic_month) AS day,
+        SELECT DATE(COALESCE(payment_date, academic_month)) AS day,
                SUM(amount_paid) AS fee
         FROM fee_payments
-        WHERE DATE_TRUNC('month', academic_month) = DATE_TRUNC('month', ${month}::DATE)
-        GROUP BY DATE(academic_month)
+        WHERE DATE_TRUNC('month', COALESCE(payment_date, academic_month)) = DATE_TRUNC('month', ${month}::DATE)
+        GROUP BY DATE(COALESCE(payment_date, academic_month))
       ),
       expense_by_day AS (
         SELECT DATE(created_at) AS day,
