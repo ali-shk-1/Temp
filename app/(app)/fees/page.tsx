@@ -604,7 +604,7 @@ function FeesContent() {
       filtered = filtered.filter((r) => (wantBoys && r.gender === 'male') || (wantGirls && r.gender === 'female'));
     }
     if (defClassFilter) {
-      filtered = filtered.filter((r) => String(r.class ?? '') === defClassFilter);
+      filtered = filtered.filter((r) => String(r.class ?? '').toLowerCase().includes(defClassFilter.toLowerCase()));
     }
     if (defSectionFilter) {
       filtered = filtered.filter((r) => String(r.section ?? '').toLowerCase() === defSectionFilter.toLowerCase());
@@ -1674,21 +1674,13 @@ function FeesContent() {
               <div className="filters">
                 <label className="text-secondary text-xs">Month:</label>
                 <input type="month" value={defMonthFilter} onChange={(e) => setDefMonthFilter(e.target.value)} />
-                <select value={defClassFilter} onChange={(e) => setDefClassFilter(e.target.value)}>
-                  <option value="">All Classes</option>
-                  <option>Nursery</option>
-                  <option>KG</option>
-                  <option>1</option>
-                  <option>2</option>
-                  <option>3</option>
-                  <option>4</option>
-                  <option>5</option>
-                  <option>6</option>
-                  <option>7</option>
-                  <option>8</option>
-                  <option>9</option>
-                  <option>10</option>
-                </select>
+                <input
+                  type="text"
+                  placeholder="Class"
+                  className="border-input px-2.5 py-[7px] rounded text-[13px] w-[90px]"
+                  value={defClassFilter}
+                  onChange={(e) => setDefClassFilter(e.target.value)}
+                />
                 <input
                   type="text"
                   placeholder="Section"
