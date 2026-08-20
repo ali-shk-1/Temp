@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
     const payment = result.payment;
     if (payment) (payment as any).receipt_no = result.receiptNo;
 
-    if (payment && payment.email && Number(payment.amount_paid) > 0) {
+    if (payment && payment.email) {
       const formattedMonth = formatAcademicMonth(payment.academic_month);
       const paymentDate = formatPaymentDate(payment.payment_date);
 
@@ -260,6 +260,7 @@ export async function POST(req: NextRequest) {
           ${hasDiscount ? '<p style="margin-top:8px;font-size:12px;color:#b3261e;font-style:italic;">* This discount is valid for 1 year only.</p>' : ''}
           <p style="margin-top:16px;">If you have any questions or need further assistance, please contact the school office.</p>
           <p style="margin-top:8px;">Sincerely,<br/>School Administration</p>
+          <p style="text-align:center;font-size:9px;color:#999;margin-top:24px;">Software provided by www.alixtech.vercel.app &nbsp;|&nbsp; 0310-5203080</p>
         </div>`;
       const text = [
         'Fee Payment Receipt',
@@ -280,6 +281,8 @@ export async function POST(req: NextRequest) {
         `Balance: ${formatCurrency(payment.balance)}`,
         '',
         'Thank you for your payment.',
+        '',
+        'Software provided by www.alixtech.vercel.app | 0310-5203080',
       ].filter((l) => l !== null).join('\n');
 
       sendMail({ to: payment.email, subject, text, html }).catch((err) =>
