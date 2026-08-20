@@ -256,10 +256,11 @@ function TrackingContent() {
   }, [filteredStudents]);
 
   const trackTableTitle = useMemo(() => {
+    const count = filteredStudents.length;
     const [y, m] = monthPicker.split('-');
-    if (!y || !m) return 'Students Who Paid Their Fee';
-    return `Students Who Paid Their Fee In ${MONTH_NAMES[Number(m) - 1]} ${y}`;
-  }, [monthPicker]);
+    if (!y || !m) return `${count} Students Who Paid Their Fee`;
+    return `${count} Students Who Paid Their ${MONTH_NAMES[Number(m) - 1]} ${y} Fee`;
+  }, [monthPicker, filteredStudents]);
 
   // Deferred: the Student Yearly Track grid is by far the heaviest
   // table in the app (12 months x 3 sub-columns per student, plus a

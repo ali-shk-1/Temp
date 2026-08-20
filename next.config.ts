@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // Gzip/Brotli-compress all responses (HTML, JSON, JS chunks) — cuts
   // transfer size substantially on slower mobile connections.
   compress: true,

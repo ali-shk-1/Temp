@@ -545,12 +545,6 @@ function FeesContent() {
   const deferredDefSearch = useDeferredValue(defSearch);
 
   // ---------------- Monthly tab filtering ----------------
-  const monthlyTableTitle = useMemo(() => {
-    const [y, m] = monthFilter.split('-');
-    if (!y || !m) return 'Students Who Deposited Their Fee';
-    return `Students Who Deposited Their Fee In ${MONTH_NAMES[Number(m) - 1]} ${y}`;
-  }, [monthFilter]);
-
   const filteredMonthly = useMemo(() => {
     const q = deferredFeeSearch.toLowerCase().trim();
     let list = monthlyData;
@@ -576,6 +570,13 @@ function FeesContent() {
     }
     return list;
   }, [monthlyData, deferredFeeSearch, statusFilter, feeFilterBoys, feeFilterGirls]);
+
+  const monthlyTableTitle = useMemo(() => {
+    const count = filteredMonthly.length;
+    const [y, m] = monthFilter.split('-');
+    if (!y || !m) return `${count} Students Who Deposited Their Fee`;
+    return `${count} Students Who Deposited Their Fee In ${MONTH_NAMES[Number(m) - 1]} ${y}`;
+  }, [monthFilter, filteredMonthly]);
 
   // ---------------- Daily tab filtering ----------------
   const filteredDaily = useMemo(() => {
