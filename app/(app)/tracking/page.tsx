@@ -172,6 +172,25 @@ function TrackingContent() {
     return () => ro.disconnect();
   }, [studentYearMonthKeys, studentYearRows.length]);
 
+  // The second header row (Date/Due/Paid sub-headers) is sticky and must
+  // sit exactly below the first header row (Photo/Roll No/Name/month
+  // labels). A hardcoded pixel offset drifts whenever font size, padding,
+  // or content wrapping changes the first row's real height, causing the
+  // sticky rows to overlap. Measure the actual height instead.
+  useEffect(() => {
+    const table = studentYearTableRef.current;
+    if (!table) return;
+    const firstRow = table.querySelector('thead tr:first-child') as HTMLElement | null;
+    if (!firstRow) return;
+    const update = () => {
+      table.style.setProperty('--head-row1-h', `${firstRow.getBoundingClientRect().height}px`);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(firstRow);
+    return () => ro.disconnect();
+  }, [studentYearMonthKeys, studentYearRows.length]);
+
   function handleTopScroll() {
     if (syncingScrollRef.current === 'bottom') { syncingScrollRef.current = null; return; }
     if (!studentYearTopScrollRef.current || !studentYearWrapRef.current) return;
@@ -657,7 +676,7 @@ function TrackingContent() {
                     <th rowSpan={2} className="frozen-col frozen-col-2">Roll No</th>
                     <th rowSpan={2} className="frozen-col frozen-col-3">Name</th>
                     <th rowSpan={2} className="father-name-col">Father Name</th>
-                    <th rowSpan={2} className="frozen-col frozen-col-4">Class</th>
+                    <th rowSpan={2} className="class-col">Class</th>
                     <th rowSpan={2}>Sec</th>
                     {studentYearMonthKeys.map((key) => (
                       <th key={key} colSpan={3} className="month-group-head">
@@ -706,7 +725,7 @@ function TrackingContent() {
                           {s.first_name || ''} {s.last_name || ''}
                         </td>
                         <td className="father-name-col">{s.father_name || '—'}</td>
-                        <td className="frozen-col frozen-col-4">{s.class ?? '—'}</td>
+                        <td className="class-col">{s.class ?? '—'}</td>
                         <td>{s.section ?? '—'}</td>
                         {studentYearMonthKeys.map((key) => {
                           const cell = s.months[key] || { due: 0, paid: 0, date: null };
@@ -867,28 +886,30 @@ function TrackingContent() {
         }
         .student-year-table thead tr {
           position: sticky;
-          z-index: 4;
         }
         .student-year-table thead tr:first-child {
           top: 0;
+          z-index: 6;
         }
         .student-year-table thead tr:last-child {
-          top: 30px;
+          top: var(--head-row1-h, 30px);
+          z-index: 4;
         }
         .student-year-table thead .frozen-col {
-          z-index: 5;
+          z-index: 7;
           background: var(--th-bg);
           color: var(--th-text);
         }
         .student-year-table .frozen-col-1 { left: 0; min-width: 44px; }
         .student-year-table .frozen-col-2 { left: 44px; min-width: 70px; }
-        .student-year-table .frozen-col-3 { left: 114px; min-width: 150px; text-align: left; }
-        .student-year-table .father-name-col { min-width: 150px; text-align: left; }
-        .student-year-table .frozen-col-4 {
-          left: 264px;
-          min-width: 60px;
+        .student-year-table .frozen-col-3 {
+          left: 114px;
+          min-width: 150px;
+          text-align: left;
           border-right: 2px solid var(--border, #e2e2e2);
         }
+        .student-year-table .father-name-col { min-width: 150px; text-align: left; }
+        .student-year-table .class-col { min-width: 60px; }
         .student-track-filters {
           flex-wrap: wrap;
           row-gap: 8px;
