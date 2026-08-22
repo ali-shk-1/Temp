@@ -448,8 +448,8 @@ function TrackingContent() {
 
           <div className="card">
             <div className="section-title">{trackTableTitle}</div>
-            <div className="table-wrap">
-              <table>
+            <div className="table-wrap main-track-wrap">
+              <table className="main-track-table">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -713,7 +713,7 @@ function TrackingContent() {
                           const isShort = cell.due > 0 && cell.paid < cell.due;
                           return (
                             <Fragment key={key}>
-                              <td className="sub-col">
+                              <td className="sub-col month-start">
                                 {cell.date ? cell.date.slice(8, 10) + '/' + cell.date.slice(5, 7) : '—'}
                               </td>
                               <td className="sub-col">{cell.due ? formatMoney(cell.due) : '—'}</td>
@@ -774,6 +774,7 @@ function TrackingContent() {
         .student-year-table {
           border-collapse: collapse;
           white-space: nowrap;
+          --month-sep: var(--text, #222);
         }
         .student-year-table th,
         .student-year-table td {
@@ -781,14 +782,24 @@ function TrackingContent() {
           font-size: 12px;
           text-align: center;
         }
+        .student-year-table thead th {
+          background: var(--th-bg);
+          color: var(--th-text);
+        }
         .student-year-table .month-group-head {
-          border-left: 2px solid var(--border, #e2e2e2);
+          border-left: 2px solid var(--month-sep, #333);
           background: var(--th-bg);
           color: var(--th-text);
         }
         .student-year-table .sub-col {
-          border-left: 1px solid var(--border, #eee);
+          border-left: 1px solid var(--border, #d8d8d8);
           min-width: 52px;
+        }
+        /* Darker vertical rule marking the start of a new month, carried
+           down through every body row (not just the header) so it's easy
+           to see where one month ends and the next begins. */
+        .student-year-table tbody td.month-start {
+          border-left: 2px solid var(--month-sep, #333);
         }
         .student-year-top-scroll {
           overflow-x: auto;
@@ -818,6 +829,12 @@ function TrackingContent() {
         .student-year-wrap {
           overflow-x: auto;
           position: relative;
+          /* content-visibility:auto on the shared .table-wrap class breaks
+             position:sticky for header rows once the table scrolls out of
+             the initial viewport (it creates its own layout containment
+             context) — turn it off for this specific table so the sticky
+             header keeps working while scrolling. */
+          content-visibility: visible;
           /* Firefox */
           scrollbar-width: thin;
           scrollbar-color: var(--muted) transparent;
@@ -848,8 +865,18 @@ function TrackingContent() {
           background: var(--card-bg, #fff);
           z-index: 2;
         }
+        .student-year-table thead tr {
+          position: sticky;
+          z-index: 4;
+        }
+        .student-year-table thead tr:first-child {
+          top: 0;
+        }
+        .student-year-table thead tr:last-child {
+          top: 30px;
+        }
         .student-year-table thead .frozen-col {
-          z-index: 3;
+          z-index: 5;
           background: var(--th-bg);
           color: var(--th-text);
         }
@@ -865,6 +892,25 @@ function TrackingContent() {
         .student-track-filters {
           flex-wrap: wrap;
           row-gap: 8px;
+        }
+        /* Freeze the header row (#, Photo, Roll No, Name, Class, Sec,
+           Father Name, ...) of the main tracking table so it stays visible
+           while scrolling the page up/down through the student list. */
+        .main-track-wrap {
+          /* content-visibility:auto on the shared .table-wrap class breaks
+             position:sticky once the table scrolls out of the initial
+             viewport — disable it here so the sticky header keeps working. */
+          content-visibility: visible;
+        }
+        .main-track-table thead tr {
+          position: sticky;
+          top: 0;
+          z-index: 3;
+        }
+        .main-track-table thead th {
+          background: var(--th-bg, #f0f0f0);
+          color: var(--th-text, #555);
+          box-shadow: 0 1px 0 var(--border, #ddd);
         }
       `}</style>
     </div>

@@ -1057,7 +1057,7 @@ function FeesContent() {
     <div class="remarks"><span class="label">Remarks:</span><span class="line">&nbsp;</span></div>
 
     <div class="thanks">Thank you for your payment!</div>
-    <div class="credit">Software provided by www.alixtech.vercel.app &nbsp;|&nbsp; 0310-5203080</div>
+    <div class="credit">Software provided by alixtech.vercel.app &nbsp;|&nbsp; 0310-5203080</div>
   </div>
   <script>
     window.onload = function () { window.print(); };
@@ -1144,7 +1144,7 @@ function FeesContent() {
   <div class="footer">
     <div class="thanks">Thank you!</div>
     <div>Stamp</div>
-    <div class="credit">Software provided by www.alixtech.vercel.app<br/>0310-5203080</div>
+    <div class="credit">Software provided by alixtech.vercel.app<br/>0310-5203080</div>
   </div>
   <script>
     window.onload = function () { window.print(); };
@@ -1213,6 +1213,15 @@ function FeesContent() {
                 </div>
               )}
             </div>
+            {payStudentSel && (() => {
+              const selStudent = allStudents.find((st) => st.student_id === payStudentSel);
+              return selStudent?.father_name ? (
+                <div className="form-group -mt-1">
+                  <label>Father's Name</label>
+                  <input type="text" value={selStudent.father_name} disabled readOnly />
+                </div>
+              ) : null;
+            })()}
             <div className="form-group">
               <label>Academic Month *</label>
               <input
